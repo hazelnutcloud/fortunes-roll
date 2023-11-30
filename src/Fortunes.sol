@@ -56,6 +56,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 		### Admin Game functions
 		1. Set seizure 🧪
 		2. Reclaim LINK tokens 🧪
+		3. Claim protocol share 🧪
 
 		### View/Helper functions
 		1. Calculate Dice Rolls 🧪
@@ -72,12 +73,16 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 		4. Total Fortune - total fortune of all players. ✅
 		5. Total Deposited - total deposits of all players. ✅
 		6. Seizure Index - the index of the current open seizure. ✅
+		7. Rolling Dice - a mapping of request ids to rolling dice. ✅
+		8. Total Protocol Rewards - total protocol rewards. ✅
 
 		### Parameters
 		1. Dice roll generation rate - how often to generate a new dice roll. ✅
 		2. Addition multiplier - how much to multiply the dice roll by when adding. ✅
 		3. Multiplication multiplier - how much to multiply the dice roll by when multiplying. ✅
 		4. Minimum fortune to roll seizure - how much fortune a player must have to roll for seizure. ✅
+		5. Game start - when the game starts. ✅
+		6. Game end - when the game ends. ✅
 	 */
 
     /* -------------------------------------------------------------------------- */
@@ -124,7 +129,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
     );
     event SeizureClosed(
         uint256 seizureIndex,
-				uint256 vaultBalance,
+        uint256 vaultBalance,
         uint256 totalRewards,
         uint256 timestamp
     );
@@ -135,6 +140,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 
     uint8 private constant DICE_SIDES = 12;
     uint256 private constant PRECISION = 1e6;
+    uint256 public constant PROTOCOL_SHARE = 50000; // 5% of generated yield goes to protocol
 
     bytes32 public constant WITHDRAW = keccak256(abi.encodePacked("withdraw"));
     bytes32 public constant FORFEIT = keccak256(abi.encodePacked("forfeit"));
@@ -189,6 +195,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
     uint256 public totalFortune;
     uint256 public totalDeposited;
     uint256 public seizureIndex;
+    uint256 public totalProtocolRewards;
 
     uint256 public diceRollGenerationRate;
     uint256 public additionMultiplier;
@@ -311,22 +318,29 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         require(fortuneSeeker.deposit > 0, "Must have deposited");
         require(block.timestamp >= gameEnd, "Must be after game has ended");
 
-        uint256 reward = calculateRewardFor(msg.sender, fortuneSeeker) +
-            STAKED_AVAX.getSharesByPooledAvax(fortuneSeeker.deposit);
+        (uint256 seekerReward, uint256 protocolReward) = calculateRewardFor(
+            msg.sender,
+            fortuneSeeker
+        );
+        seekerReward += STAKED_AVAX.getSharesByPooledAvax(
+            fortuneSeeker.deposit
+        );
 
         totalDeposited -= fortuneSeeker.deposit;
         totalFortune -= fortuneSeeker.fortune;
 
+        totalProtocolRewards += protocolReward;
+
         delete fortuneSeekers[msg.sender];
 
         require(
-            reward < STAKED_AVAX.balanceOf(address(this)),
+            seekerReward < STAKED_AVAX.balanceOf(address(this)),
             "Not enough shares to withdraw"
         );
 
-        STAKED_AVAX.transfer(msg.sender, reward);
+        STAKED_AVAX.transfer(msg.sender, seekerReward);
 
-        emit Withdraw(msg.sender, reward, REDEEM, block.timestamp);
+        emit Withdraw(msg.sender, seekerReward, REDEEM, block.timestamp);
         emit FortuneLost(msg.sender, fortuneSeeker.fortune, block.timestamp);
     }
 
@@ -343,14 +357,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             seizureIndex: 0
         });
 
-				emit DiceRolled(
-					msg.sender,
-					RollAction.Add,
-					0,
-					0,
-					requestId,
-					block.timestamp
-				);
+        emit DiceRolled(
+            msg.sender,
+            RollAction.Add,
+            0,
+            0,
+            requestId,
+            block.timestamp
+        );
 
         return requestId;
     }
@@ -370,14 +384,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             seizureIndex: 0
         });
 
-				emit DiceRolled(
-					msg.sender,
-					RollAction.Multiply,
-					stakeModulus,
-					0,
-					requestId,
-					block.timestamp
-				);
+        emit DiceRolled(
+            msg.sender,
+            RollAction.Multiply,
+            stakeModulus,
+            0,
+            requestId,
+            block.timestamp
+        );
 
         return requestId;
     }
@@ -412,14 +426,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             seizureIndex: seizureIndex
         });
 
-				emit DiceRolled(
-					msg.sender,
-					RollAction.Seizure,
-					0,
-					seizureIndex,
-					requestId,
-					block.timestamp
-				);
+        emit DiceRolled(
+            msg.sender,
+            RollAction.Seizure,
+            0,
+            seizureIndex,
+            requestId,
+            block.timestamp
+        );
 
         return requestId;
     }
@@ -442,7 +456,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         vaultBalance -= totalRewards;
         totalFortune += totalRewards;
 
-        emit SeizureClosed(seizureIndex, vaultBalance, totalRewards, block.timestamp);
+        emit SeizureClosed(
+            seizureIndex,
+            vaultBalance,
+            totalRewards,
+            block.timestamp
+        );
 
         seizureIndex += 1;
     }
@@ -513,6 +532,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         LINK_TOKEN.transfer(msg.sender, LINK_TOKEN.balanceOf(address(this)));
     }
 
+    function claimProtocolRewards() external onlyOwner {
+        uint256 amount = totalProtocolRewards;
+
+        totalProtocolRewards = 0;
+
+        STAKED_AVAX.transfer(msg.sender, amount);
+    }
+
     /* -------------------------------------------------------------------------- */
     /*                             Internal Functions                             */
     /* -------------------------------------------------------------------------- */
@@ -538,7 +565,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
     function calculateRewardFor(
         address seekerAddress,
         FortuneSeeker storage fortuneSeeker
-    ) internal view returns (uint256) {
+    ) internal view returns (uint256, uint256) {
         uint256 totalRewards = STAKED_AVAX.balanceOf(address(this)) -
             STAKED_AVAX.getSharesByPooledAvax(totalDeposited);
 
@@ -547,7 +574,10 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             fortuneSeeker
         );
 
-        return (totalRewards * seekerFortune) / totalFortune;
+        uint256 seekerReward = (totalRewards * seekerFortune) / totalFortune;
+        uint256 protocolReward = (seekerReward * PROTOCOL_SHARE) / PRECISION;
+
+        return (seekerReward - protocolReward, protocolReward);
     }
 
     function rollDice(
@@ -658,15 +688,15 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 
         delete rollingDie[requestId];
 
-				emit DiceLanded(
-						rollingDice.fortuneSeeker,
-						rollingDice.action,
-						rollingDice.multiplyStake,
-						rollingDice.seizureIndex,
-						requestId,
-						diceRoll,
-						block.timestamp
-				);
+        emit DiceLanded(
+            rollingDice.fortuneSeeker,
+            rollingDice.action,
+            rollingDice.multiplyStake,
+            rollingDice.seizureIndex,
+            requestId,
+            diceRoll,
+            block.timestamp
+        );
     }
 
     receive() external payable {

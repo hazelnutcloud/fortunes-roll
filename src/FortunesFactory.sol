@@ -3,6 +3,8 @@ pragma solidity ^0.8.23;
 
 import {Owned} from "solmate/auth/Owned.sol";
 import {Fortunes} from "./fortunes.sol";
+import {IStakedAvax} from "./benqi/IStakedAvax.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 contract FortunesFactory is Owned {
     event FortuneCreated(uint256 indexed index, address indexed fortune);
@@ -57,7 +59,7 @@ contract FortunesFactory is Owned {
             )
         );
 
-				emit FortuneCreated(index, fortunes[index]);
+        emit FortuneCreated(index, fortunes[index]);
 
         index++;
         return index;
@@ -78,5 +80,25 @@ contract FortunesFactory is Owned {
             fee,
             rewardShares
         );
+    }
+
+    function reclaimLinkTokens(uint256 gameIndex) external onlyOwner {
+        Fortunes(fortunes[gameIndex]).reclaimLinkTokens();
+
+        ERC20 linkTokenContract = ERC20(linkToken);
+
+        uint256 balance = linkTokenContract.balanceOf(address(this));
+
+        linkTokenContract.transfer(msg.sender, balance);
+    }
+
+    function claimProtocolRewards(uint256 gameIndex) external onlyOwner {
+        Fortunes(fortunes[gameIndex]).claimProtocolRewards();
+
+        IStakedAvax stakedAvaxContract = IStakedAvax(stakedAvax);
+
+        uint256 balance = stakedAvaxContract.balanceOf(address(this));
+
+        stakedAvaxContract.transfer(msg.sender, balance);
     }
 }
