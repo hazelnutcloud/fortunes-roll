@@ -2,6 +2,7 @@
 pragma solidity ^0.8.23;
 
 import {Owned} from "solmate/auth/Owned.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 import {VRFConsumerBaseV2} from "./chainlink/VRFConsumerBaseV2.sol";
 import {VRFCoordinatorV2Interface} from "./chainlink/VRFCoordinatorV2Interface.sol";
 import {Owned} from "solmate/auth/Owned.sol";
@@ -24,29 +25,43 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 
 		# Contract Structure:
 
+		## Events
+		1. FortuneGained - emitted when a player gains fortune. 🧪
+		2. FortuneLost - emitted when a player loses fortune. 🧪
+		3. Deposit - emitted when a player deposits funds. 🧪
+		4a. Withdraw - emitted when a player withdraws funds. 🧪
+		4b. Forfeit - emitted when a player forfeits their funds. 🧪
+		4c. Redeem - emitted when a player redeems their funds. 🧪
+		5. DiceRolled - emitted when a player rolls the dice. 🧪
+		6. DiceLanded - emitted when the dice lands. 🧪
+		7. SeizureClosed - emitted when a seizure is closed. 🧪
+
 		## Methods
 
 		### Deposits and withdrawals
 		1. Deposit at any time 🧪
-		2. Forfeit while game is running 🧪
-		3. Redeem after end of game 🧪
+		2. Withdraw before game starts 🧪
+		3. Forfeit while game is running 🧪
+		4. Redeem after end of game 🧪
 
 		### User Game functions
 		1. Roll For Add 🧪
 		2. Roll For Multiply 🧪
 		3. Roll For Seizure 🧪
-		4. Close current Seizure 🧪
+		4. Close current Seizure - Closes the current open seizure to continue to the next one 🧪
 
 		### Chainlink VRF functions
 		1. FulfillRandomness - generates a new dice roll for a user 🧪
 
 		### Admin Game functions
 		1. Set seizure 🧪
+		2. Reclaim LINK tokens 🧪
 
 		### View/Helper functions
 		1. Calculate Dice Rolls 🧪
 		2. Calculate Rewards 🧪
 		3. Calculate Seizure Rewards 🧪
+		4. Get Total Fortune For 🧪
 
 		## Mapping & Variables
 
@@ -54,12 +69,65 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 		1. Fortunes - a mapping of addresses to their fortunes. ✅
 		2. Deposits - a mapping of addresses to their deposits. ✅
 		3. Vault - fortunes lost by players accumulate here. ✅
+		4. Total Fortune - total fortune of all players. ✅
+		5. Total Deposited - total deposits of all players. ✅
+		6. Seizure Index - the index of the current open seizure. ✅
 
 		### Parameters
 		1. Dice roll generation rate - how often to generate a new dice roll. ✅
 		2. Addition multiplier - how much to multiply the dice roll by when adding. ✅
 		3. Multiplication multiplier - how much to multiply the dice roll by when multiplying. ✅
+		4. Minimum fortune to roll seizure - how much fortune a player must have to roll for seizure. ✅
 	 */
+
+    /* -------------------------------------------------------------------------- */
+    /*                                   Events                                   */
+    /* -------------------------------------------------------------------------- */
+
+    event FortuneGained(
+        address indexed fortuneSeeker,
+        uint256 fortuneGained,
+        uint256 timestamp
+    );
+    event FortuneLost(
+        address indexed fortuneSeeker,
+        uint256 fortuneLost,
+        uint256 timestamp
+    );
+    event Deposit(
+        address indexed fortuneSeeker,
+        uint256 amount,
+        uint256 timestamp
+    );
+    event Withdraw(
+        address indexed fortuneSeeker,
+        uint256 shareAmount,
+        bytes32 kind,
+        uint256 timestamp
+    );
+    event DiceRolled(
+        address indexed fortuneSeeker,
+        RollAction action,
+        uint256 multiplyStake,
+        uint256 seizureIndex,
+        uint256 requestId,
+        uint256 timestamp
+    );
+    event DiceLanded(
+        address indexed fortuneSeeker,
+        RollAction action,
+        uint256 multiplyStake,
+        uint256 seizureIndex,
+        uint256 requestId,
+        uint256 diceRoll,
+        uint256 timestamp
+    );
+    event SeizureClosed(
+        uint256 seizureIndex,
+				uint256 vaultBalance,
+        uint256 totalRewards,
+        uint256 timestamp
+    );
 
     /* -------------------------------------------------------------------------- */
     /*                            Mappings & Variables                            */
@@ -67,6 +135,10 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 
     uint8 private constant DICE_SIDES = 12;
     uint256 private constant PRECISION = 1e6;
+
+    bytes32 public constant WITHDRAW = keccak256(abi.encodePacked("withdraw"));
+    bytes32 public constant FORFEIT = keccak256(abi.encodePacked("forfeit"));
+    bytes32 public constant REDEEM = keccak256(abi.encodePacked("redeem"));
 
     struct FortuneSeeker {
         uint256 fortune;
@@ -108,6 +180,9 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
     // sAVAX
     IStakedAvax public STAKED_AVAX;
 
+    // LINK
+    ERC20 public LINK_TOKEN;
+
     uint256 public gameStart;
     uint256 public gameEnd;
     uint256 public vaultBalance;
@@ -132,6 +207,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         address _owner,
         address _vrfCoordinator,
         address payable _stakedAvax,
+        address _linkToken,
         uint256 _gameStart,
         uint256 _gameEnd,
         uint256 _diceRollGenerationRate,
@@ -146,6 +222,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         SUBSCRIPTION_ID = subscriptionId;
 
         STAKED_AVAX = IStakedAvax(_stakedAvax);
+
+        LINK_TOKEN = ERC20(_linkToken);
 
         gameStart = _gameStart;
         gameEnd = _gameEnd;
@@ -168,6 +246,32 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         totalDeposited += msg.value;
 
         STAKED_AVAX.submit{value: msg.value}();
+
+        emit Deposit(msg.sender, msg.value, block.timestamp);
+    }
+
+    function withdraw() public {
+        require(block.timestamp < gameStart, "Must be before game start");
+
+        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+
+        require(fortuneSeeker.deposit > 0, "Must have a deposit");
+
+        totalDeposited -= fortuneSeeker.deposit;
+        fortuneSeeker.deposit = 0;
+
+        uint256 amount = STAKED_AVAX.getSharesByPooledAvax(
+            fortuneSeeker.deposit
+        );
+
+        require(
+            amount < STAKED_AVAX.balanceOf(address(this)),
+            "Not enough shares to withdraw"
+        );
+
+        STAKED_AVAX.transfer(msg.sender, amount);
+
+        emit Withdraw(msg.sender, amount, WITHDRAW, block.timestamp);
     }
 
     function forfeit() external {
@@ -196,6 +300,9 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         );
 
         STAKED_AVAX.transfer(msg.sender, amount);
+
+        emit Withdraw(msg.sender, amount, FORFEIT, block.timestamp);
+        emit FortuneLost(msg.sender, fortune, block.timestamp);
     }
 
     function redeem() external {
@@ -218,6 +325,9 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         );
 
         STAKED_AVAX.transfer(msg.sender, reward);
+
+        emit Withdraw(msg.sender, reward, REDEEM, block.timestamp);
+        emit FortuneLost(msg.sender, fortuneSeeker.fortune, block.timestamp);
     }
 
     function rollAdd() external returns (uint256) {
@@ -232,6 +342,15 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             multiplyStake: 0,
             seizureIndex: 0
         });
+
+				emit DiceRolled(
+					msg.sender,
+					RollAction.Add,
+					0,
+					0,
+					requestId,
+					block.timestamp
+				);
 
         return requestId;
     }
@@ -250,6 +369,15 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             multiplyStake: stakeModulus,
             seizureIndex: 0
         });
+
+				emit DiceRolled(
+					msg.sender,
+					RollAction.Multiply,
+					stakeModulus,
+					0,
+					requestId,
+					block.timestamp
+				);
 
         return requestId;
     }
@@ -284,6 +412,15 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             seizureIndex: seizureIndex
         });
 
+				emit DiceRolled(
+					msg.sender,
+					RollAction.Seizure,
+					0,
+					seizureIndex,
+					requestId,
+					block.timestamp
+				);
+
         return requestId;
     }
 
@@ -304,37 +441,10 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         seizure.vaultSnapshot = totalRewards;
         vaultBalance -= totalRewards;
         totalFortune += totalRewards;
+
+        emit SeizureClosed(seizureIndex, vaultBalance, totalRewards, block.timestamp);
+
         seizureIndex += 1;
-    }
-
-    /* -------------------------------------------------------------------------- */
-    /*                               Admin Functions                              */
-    /* -------------------------------------------------------------------------- */
-
-    function setSeizure(
-        uint256 index,
-        uint256 start,
-        uint256 end,
-        uint256 fee,
-        uint256[DICE_SIDES] calldata rewardShares
-    ) external onlyOwner {
-        require(start > 0, "Must have start time");
-
-        Seizure storage seizure = seizures[index];
-
-        require(seizure.start == 0, "Seizure already exists");
-        require(end > start, "Must have end time");
-        require(fee > 0, "Must have fee");
-        require(rewardShares.length == DICE_SIDES, "Must have rewards");
-
-        seizure.start = start;
-        seizure.end = end;
-        seizure.fee = fee;
-        seizure.rewardShares = rewardShares;
-
-        for (uint256 i = 0; i < DICE_SIDES; i++) {
-            seizure.rewardSharesTotal += rewardShares[i];
-        }
     }
 
     function calculateSeizureRewards(
@@ -355,11 +465,52 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 
             uint256 rollReward = (rollRewardShare * seizure.vaultSnapshot) /
                 seizure.rewardSharesTotal;
-						
-						seizureRewards += rollReward / seizure.seizorTallies[roll - 1];
+
+            seizureRewards += rollReward / seizure.seizorTallies[roll - 1];
         }
 
         return seizureRewards;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                               Admin Functions                              */
+    /* -------------------------------------------------------------------------- */
+
+    function setSeizure(
+        uint256 index,
+        uint256 start,
+        uint256 end,
+        uint256 fee,
+        uint256[] calldata rewardShares
+    ) external onlyOwner {
+        require(gameStart > 0, "Must have game start time");
+        require(start > 0, "Must have start time");
+
+        Seizure storage seizure = seizures[index];
+
+        require(seizure.start == 0, "Seizure already exists");
+        require(end > start, "Must have end time");
+        require(fee > 0, "Must have fee");
+        require(rewardShares.length == DICE_SIDES, "Must have rewards");
+
+        uint256[DICE_SIDES] memory rewardSharesCopy;
+
+        for (uint256 i = 0; i < DICE_SIDES; i++) {
+            rewardSharesCopy[i] = rewardShares[i];
+        }
+
+        seizure.start = start;
+        seizure.end = end;
+        seizure.fee = fee;
+        seizure.rewardShares = rewardSharesCopy;
+
+        for (uint256 i = 0; i < DICE_SIDES; i++) {
+            seizure.rewardSharesTotal += rewardShares[i];
+        }
+    }
+
+    function reclaimLinkTokens() external onlyOwner {
+        LINK_TOKEN.transfer(msg.sender, LINK_TOKEN.balanceOf(address(this)));
     }
 
     /* -------------------------------------------------------------------------- */
@@ -502,10 +653,20 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         } else if (rollingDice.action == RollAction.Seizure) {
             finalizeSeizureRoll(diceRoll, rollingDice);
         } else {
-						revert("Invalid roll action");
-				}
+            revert("Invalid roll action");
+        }
 
         delete rollingDie[requestId];
+
+				emit DiceLanded(
+						rollingDice.fortuneSeeker,
+						rollingDice.action,
+						rollingDice.multiplyStake,
+						rollingDice.seizureIndex,
+						requestId,
+						diceRoll,
+						block.timestamp
+				);
     }
 
     receive() external payable {
