@@ -56,9 +56,9 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 		3. Vault - fortunes lost by players accumulate here. ✅
 
 		### Parameters
-		1. Dice roll generation rate - how often to generate a new dice roll. 🚧
-		2. Addition multiplier - how much to multiply the dice roll by when adding. 🚧
-		3. Multiplication multiplier - how much to multiply the dice roll by when multiplying. 🚧
+		1. Dice roll generation rate - how often to generate a new dice roll. ✅
+		2. Addition multiplier - how much to multiply the dice roll by when adding. ✅
+		3. Multiplication multiplier - how much to multiply the dice roll by when multiplying. ✅
 	 */
 
     /* -------------------------------------------------------------------------- */
@@ -113,7 +113,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
     uint256 public vaultBalance;
     uint256 public totalFortune;
     uint256 public totalDeposited;
-    uint256 public totalDepositors;
     uint256 public seizureIndex;
 
     uint256 public diceRollGenerationRate;
@@ -165,10 +164,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
 
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
-        if (fortuneSeeker.deposit == 0) {
-            totalDepositors += 1;
-        }
-
         fortuneSeeker.deposit += msg.value;
         totalDeposited += msg.value;
 
@@ -188,8 +183,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         uint256 fortune = getTotalFortuneFor(msg.sender, fortuneSeeker);
 
         vaultBalance += fortune;
-        totalDepositors -= 1;
         totalFortune -= fortune;
+        totalDeposited -= deposited;
 
         delete fortuneSeekers[msg.sender];
 
@@ -209,22 +204,20 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         require(fortuneSeeker.deposit > 0, "Must have deposited");
         require(block.timestamp >= gameEnd, "Must be after game has ended");
 
-        uint256 rewards = calculateRewardsFor(msg.sender, fortuneSeeker);
-        uint256 redemption = rewards + fortuneSeeker.deposit;
+        uint256 reward = calculateRewardFor(msg.sender, fortuneSeeker) +
+            STAKED_AVAX.getSharesByPooledAvax(fortuneSeeker.deposit);
 
-        totalDepositors -= 1;
+        totalDeposited -= fortuneSeeker.deposit;
         totalFortune -= fortuneSeeker.fortune;
 
         delete fortuneSeekers[msg.sender];
 
-        uint256 amount = STAKED_AVAX.getSharesByPooledAvax(redemption);
-
         require(
-            amount < STAKED_AVAX.balanceOf(address(this)),
+            reward < STAKED_AVAX.balanceOf(address(this)),
             "Not enough shares to withdraw"
         );
 
-        STAKED_AVAX.transfer(msg.sender, amount);
+        STAKED_AVAX.transfer(msg.sender, reward);
     }
 
     function rollAdd() external returns (uint256) {
@@ -244,8 +237,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
     }
 
     function rollMultiply(uint256 stake) external returns (uint256) {
-        uint256 stakeModulus = stake % DICE_SIDES;
-        require(stakeModulus > 0, "Must stake more than 0");
+        uint256 stakeModulus = (stake % DICE_SIDES) + 1;
 
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
@@ -359,11 +351,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
                 continue;
             }
 
-            uint256 seizureRewardShares = seizure.rewardShares[roll - 1];
+            uint256 rollRewardShare = seizure.rewardShares[roll - 1];
 
-            seizureRewards +=
-                (seizureRewardShares * seizure.vaultSnapshot) /
+            uint256 rollReward = (rollRewardShare * seizure.vaultSnapshot) /
                 seizure.rewardSharesTotal;
+						
+						seizureRewards += rollReward / seizure.seizorTallies[roll - 1];
         }
 
         return seizureRewards;
@@ -391,7 +384,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         return diceRollsRemaining;
     }
 
-    function calculateRewardsFor(
+    function calculateRewardFor(
         address seekerAddress,
         FortuneSeeker storage fortuneSeeker
     ) internal view returns (uint256) {
@@ -508,7 +501,9 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
             );
         } else if (rollingDice.action == RollAction.Seizure) {
             finalizeSeizureRoll(diceRoll, rollingDice);
-        }
+        } else {
+						revert("Invalid roll action");
+				}
 
         delete rollingDie[requestId];
     }
