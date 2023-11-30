@@ -162,7 +162,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256[DICE_SIDES] grabberTallies; // number of seekers who rolled each side
         uint256 rewardSharesTotal;
         mapping(address => uint256) rolls;
-        uint256 vaultSnapshot;
+        uint256 rewardsSnapshot;
     }
 
     struct RollingDice {
@@ -197,6 +197,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     uint256 public totalDeposited;
     uint256 public grabbeningIndex;
     uint256 public totalProtocolRewards;
+		uint256 public outstandingRolls;
 
     uint256 public diceRollGenerationRate;
     uint256 public additionMultiplier;
@@ -245,17 +246,19 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     /*                              Public Functions                              */
     /* -------------------------------------------------------------------------- */
 
-    function deposit() public payable {
-        require(msg.value > 0, "Must deposit more than 0");
+    function deposit(uint256 shareAmount) public {
+        require(shareAmount > 0, "Must deposit more than 0");
 
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
-        fortuneSeeker.deposit += msg.value;
-        totalDeposited += msg.value;
+				uint256 underlyingAmount = STAKED_AVAX.getPooledAvaxByShares(shareAmount);
 
-        STAKED_AVAX.submit{value: msg.value}();
+        fortuneSeeker.deposit += underlyingAmount;
+        totalDeposited += underlyingAmount;
 
-        emit Deposit(msg.sender, msg.value, block.timestamp);
+        STAKED_AVAX.transferFrom(msg.sender, address(this), shareAmount);
+
+        emit Deposit(msg.sender, underlyingAmount, block.timestamp);
     }
 
     function withdraw() public nonReentrant {
@@ -314,10 +317,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     }
 
     function redeem() external nonReentrant {
+        require(block.timestamp >= gameEnd, "Must be after game has ended");
+				require(outstandingRolls == 0, "Must have no outstanding rolls");
+				
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
         require(fortuneSeeker.deposit > 0, "Must have deposited");
-        require(block.timestamp >= gameEnd, "Must be after game has ended");
 
         (uint256 seekerReward, uint256 protocolReward) = calculateRewardFor(
             msg.sender,
@@ -457,7 +462,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
                 PRECISION;
         }
 
-        grabbening.vaultSnapshot = totalRewards;
+        grabbening.rewardsSnapshot = totalRewards;
         potBalance -= totalRewards;
         totalFortune += totalRewards;
 
@@ -487,7 +492,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
             uint256 rollRewardShare = grabbening.rewardShares[roll - 1];
 
-            uint256 rollReward = (rollRewardShare * grabbening.vaultSnapshot) /
+            uint256 rollReward = (rollRewardShare * grabbening.rewardsSnapshot) /
                 grabbening.rewardSharesTotal;
 
             grabbeningRewards += rollReward / grabbening.grabberTallies[roll - 1];
@@ -601,6 +606,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             "Must have dice rolls remaining"
         );
 
+				outstandingRolls += 1;
+
         fortuneSeeker.diceRollsRemaining = diceRollsRemaining - (1 * PRECISION);
         fortuneSeeker.lastDiceRollTimestamp = block.timestamp;
 
@@ -693,6 +700,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         delete rollingDie[requestId];
 
+				outstandingRolls -= 1;
+
         emit DiceLanded(
             rollingDice.fortuneSeeker,
             rollingDice.action,
@@ -702,9 +711,5 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             diceRoll,
             block.timestamp
         );
-    }
-
-    receive() external payable {
-        deposit();
     }
 }
