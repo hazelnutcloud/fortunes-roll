@@ -1,13 +1,13 @@
 # Fortune's Roll 🎲🎲
 ![Fortune's Roll Banner](banner.png)
 
-Fortune's Roll is an engaging, zero-loss game that blends strategy with the excitement of chance.
+## Overview
 
-Players start by depositing funds, then roll the dice to either cautiously grow or daringly multiply their fortunes. Unique to this game is the communal pot: stakes lost by players in risky moves accumulate here. At strategic moments, players can choose to draw from this pot, taking a chance to claim a significant portion of these amassed stakes. 
+Fortune's Roll is a captivating game where strategy meets the thrill of chance. Players earn points by rolling the dice, with options to safely accumulate or ambitiously multiply their tally. Each roll can either steadily increase their points or, for the daring, offer a chance to win big at the risk of losing some of their current score.
 
-While your initial deposit remains safe, bold plays can lead to substantial rewards. The game concludes with players sharing the total yield, turning every decision and roll into a potential path to greater wealth.
+What sets this game apart is the communal pot, fed by points lost in high-stakes rolls. Players can take strategic risks to claim a share of this pot, adding an exciting layer of decision-making.
 
----
+As the game progresses, the excitement builds: the yield generated from the collective pool is distributed at the end, based on players' standings in the points leaderboard. Your initial deposit remains untouched, making the game a zero-loss venture where only the points are at play. It's a dynamic blend of safe strategies and high-risk gambles, where every decision can catapult you up the leaderboard towards greater rewards.
 
 ## TODO
 
