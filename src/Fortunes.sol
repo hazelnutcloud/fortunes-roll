@@ -7,8 +7,9 @@ import {VRFConsumerBaseV2} from "./chainlink/VRFConsumerBaseV2.sol";
 import {VRFCoordinatorV2Interface} from "./chainlink/VRFCoordinatorV2Interface.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {IStakedAvax} from "./benqi/IStakedAvax.sol";
+import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 
-contract Fortunes is VRFConsumerBaseV2, Owned {
+contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     /**
 
 		8888888888               888                              d8b             8888888b.          888 888		   _______
@@ -257,7 +258,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         emit Deposit(msg.sender, msg.value, block.timestamp);
     }
 
-    function withdraw() public {
+    function withdraw() public nonReentrant {
         require(block.timestamp < gameStart, "Must be before game start");
 
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
@@ -281,7 +282,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         emit Withdraw(msg.sender, amount, WITHDRAW, block.timestamp);
     }
 
-    function forfeit() external {
+    function forfeit() external nonReentrant {
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
         require(fortuneSeeker.deposit > 0, "Must have a deposit");
@@ -312,7 +313,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned {
         emit FortuneLost(msg.sender, fortune, block.timestamp);
     }
 
-    function redeem() external {
+    function redeem() external nonReentrant {
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
         require(fortuneSeeker.deposit > 0, "Must have deposited");
