@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {Owned} from "solmate/auth/Owned.sol";
 import {VRFConsumerBaseV2} from "./chainlink/VRFConsumerBaseV2.sol";
 import {VRFCoordinatorV2Interface} from "./chainlink/VRFCoordinatorV2Interface.sol";
 import {Owned} from "solmate/auth/Owned.sol";
-import {StakedAvax} from "./benqi/StakedAvax.sol";
+import {IStakedAvax} from "./benqi/IStakedAvax.sol";
 
-contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
+contract Fortunes is VRFConsumerBaseV2, Owned {
     /**
 		# Fortunes Roll 🎲
 
@@ -94,7 +93,7 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
     uint64 private SUBSCRIPTION_ID;
 
     // sAVAX
-    StakedAvax public STAKED_AVAX;
+    IStakedAvax public STAKED_AVAX;
 
     uint256 public gameStart;
     uint256 public gameEnd;
@@ -115,7 +114,7 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
     constructor(
         address _owner,
         address _vrfCoordinator,
-        address _stakedAvax,
+        address payable _stakedAvax,
         bytes32 keyHash,
         uint64 subscriptionId
     ) VRFConsumerBaseV2(_vrfCoordinator) Owned(_owner) {
@@ -123,14 +122,14 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
         KEY_HASH = keyHash;
         SUBSCRIPTION_ID = subscriptionId;
 
-        STAKED_AVAX = StakedAvax(_stakedAvax);
+        STAKED_AVAX = IStakedAvax(_stakedAvax);
     }
 
     /* -------------------------------------------------------------------------- */
     /*                              Public Functions                              */
     /* -------------------------------------------------------------------------- */
 
-    function deposit() external payable {
+    function deposit() public payable {
         require(msg.value > 0, "Must deposit more than 0");
 
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
@@ -140,9 +139,11 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
         }
 
         fortuneSeeker.deposit += msg.value;
+
+				STAKED_AVAX.submit{value: msg.value}();
     }
 
-    function forfeit() external nonReentrant {
+    function forfeit() external {
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
         require(fortuneSeeker.deposit > 0, "Must have a deposit");
@@ -160,10 +161,14 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
 
         delete fortuneSeekers[msg.sender];
 
-        payable(msg.sender).transfer(deposited);
+				uint256 amount = STAKED_AVAX.getSharesByPooledAvax(deposited);
+
+				require(amount < STAKED_AVAX.balanceOf(address(this)), "Not enough shares to withdraw");
+
+				STAKED_AVAX.transfer(msg.sender, amount);
     }
 
-    function redeem() external nonReentrant {
+    function redeem() external {
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
         require(fortuneSeeker.deposit > 0, "Must have a fortune");
@@ -177,7 +182,11 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
 
         delete fortuneSeekers[msg.sender];
 
-        payable(msg.sender).transfer(redemption);
+				uint256 amount = STAKED_AVAX.getSharesByPooledAvax(redemption);
+
+				require(amount < STAKED_AVAX.balanceOf(address(this)), "Not enough shares to withdraw");
+				
+				STAKED_AVAX.transfer(msg.sender, amount);
     }
 
     function rollAdd() external returns (uint256) {
@@ -385,4 +394,8 @@ contract Fortunes is VRFConsumerBaseV2, ReentrancyGuard, Owned {
 
         delete rollingDie[requestId];
     }
+
+    receive() external payable {
+			deposit();
+		}
 }
