@@ -3,11 +3,11 @@
 
 ## Overview
 
-Fortune's Roll is a captivating game where strategy meets the thrill of chance. Players earn points by rolling the dice, with options to safely accumulate or ambitiously multiply their tally. Each roll can either steadily increase their points or, for the daring, offer a chance to win big at the risk of losing some of their current score.
+Fortune's Roll is a captivative game where players' strategic acumen meets the unpredictability of fate. Upon joining, players make an initial deposit to the collective pool, which is then used to generate yield over the course of the game. As they roll the dice, players earn points, choosing either to safely accumulate or to take calculated risks to multiply their scores.
 
-What sets this game apart is the communal pot, fed by points lost in high-stakes rolls. Players can take strategic risks to claim a share of this pot, adding an exciting layer of decision-making.
+A key feature of the game is the communal pot, fueled by points lost during high-stakes rolls. Players can opt to take a chance at claiming a portion of this pot, adding a thrilling strategic element.
 
-As the game progresses, the excitement builds: the yield generated from the collective pool is distributed at the end, based on players' standings in the points leaderboard. Your initial deposit remains untouched, making the game a zero-loss venture where only the points are at play. It's a dynamic blend of safe strategies and high-risk gambles, where every decision can catapult you up the leaderboard towards greater rewards.
+The game's climax is as exciting as its progression: at the end, the generated yield from the initial deposit pool is distributed among players based on their final positions in the points leaderboard. While the initial deposits are secure, ensuring a zero-loss experience, the points earned through gameplay determine each player’s share of the yield. This setup offers a perfect blend of risk-free participation and the exhilarating potential of high-reward strategies, making every roll a critical step in the journey to the top of the leaderboard.
 
 ## TODO
 

@@ -35,7 +35,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 		4c. Redeem - emitted when a player redeems their funds. 🧪
 		5. DiceRolled - emitted when a player rolls the dice. 🧪
 		6. DiceLanded - emitted when the dice lands. 🧪
-		7. SeizureClosed - emitted when a seizure is closed. 🧪
+		7. GrabbeningClosed - emitted when a grabbening is closed. 🧪
 
 		## Methods
 
@@ -48,21 +48,21 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 		### User Game functions
 		1. Roll For Add 🧪
 		2. Roll For Multiply 🧪
-		3. Roll For Seizure 🧪
-		4. Close current Seizure - Closes the current open seizure to continue to the next one 🧪
+		3. Roll For Grabbening 🧪
+		4. Close current Grabbening - Closes the current open grabbening to continue to the next one 🧪
 
 		### Chainlink VRF functions
 		1. FulfillRandomness - generates a new dice roll for a user 🧪
 
 		### Admin Game functions
-		1. Set seizure 🧪
+		1. Set grabbening 🧪
 		2. Reclaim LINK tokens 🧪
 		3. Claim protocol share 🧪
 
 		### View/Helper functions
 		1. Calculate Dice Rolls 🧪
 		2. Calculate Rewards 🧪
-		3. Calculate Seizure Rewards 🧪
+		3. Calculate Grabbening Rewards 🧪
 		4. Get Total Fortune For 🧪
 
 		## Mapping & Variables
@@ -73,7 +73,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 		3. Vault - fortunes lost by players accumulate here. ✅
 		4. Total Fortune - total fortune of all players. ✅
 		5. Total Deposited - total deposits of all players. ✅
-		6. Seizure Index - the index of the current open seizure. ✅
+		6. Grabbening Index - the index of the current open grabbening. ✅
 		7. Rolling Dice - a mapping of request ids to rolling dice. ✅
 		8. Total Protocol Rewards - total protocol rewards. ✅
 
@@ -81,7 +81,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 		1. Dice roll generation rate - how often to generate a new dice roll. ✅
 		2. Addition multiplier - how much to multiply the dice roll by when adding. ✅
 		3. Multiplication multiplier - how much to multiply the dice roll by when multiplying. ✅
-		4. Minimum fortune to roll seizure - how much fortune a player must have to roll for seizure. ✅
+		4. Minimum fortune to roll grabbening - how much fortune a player must have to roll for grabbening. ✅
 		5. Game start - when the game starts. ✅
 		6. Game end - when the game ends. ✅
 	 */
@@ -115,7 +115,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         address indexed fortuneSeeker,
         RollAction action,
         uint256 multiplyStake,
-        uint256 seizureIndex,
+        uint256 grabbeningIndex,
         uint256 requestId,
         uint256 timestamp
     );
@@ -123,14 +123,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         address indexed fortuneSeeker,
         RollAction action,
         uint256 multiplyStake,
-        uint256 seizureIndex,
+        uint256 grabbeningIndex,
         uint256 requestId,
         uint256 diceRoll,
         uint256 timestamp
     );
-    event SeizureClosed(
-        uint256 seizureIndex,
-        uint256 vaultBalance,
+    event GrabbeningClosed(
+        uint256 grabbeningIndex,
+        uint256 potBalance,
         uint256 totalRewards,
         uint256 timestamp
     );
@@ -154,12 +154,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 lastDiceRollTimestamp;
     }
 
-    struct Seizure {
+    struct Grabbening {
         uint256 start;
         uint256 end;
         uint256 fee;
         uint256[DICE_SIDES] rewardShares; // denominated in PRECISION e.g 50% = 0.5 * PRECISION. Total should never exceed 1 * PRECISION
-        uint256[DICE_SIDES] seizorTallies; // number of seekers who rolled each side
+        uint256[DICE_SIDES] grabberTallies; // number of seekers who rolled each side
         uint256 rewardSharesTotal;
         mapping(address => uint256) rolls;
         uint256 vaultSnapshot;
@@ -169,14 +169,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 requestId;
         address fortuneSeeker;
         uint256 multiplyStake;
-        uint256 seizureIndex;
+        uint256 grabbeningIndex;
         RollAction action;
     }
 
     enum RollAction {
         Add,
         Multiply,
-        Seizure
+        Grab
     }
 
     // Chainlink VRF
@@ -192,18 +192,18 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
     uint256 public gameStart;
     uint256 public gameEnd;
-    uint256 public vaultBalance;
+    uint256 public potBalance;
     uint256 public totalFortune;
     uint256 public totalDeposited;
-    uint256 public seizureIndex;
+    uint256 public grabbeningIndex;
     uint256 public totalProtocolRewards;
 
     uint256 public diceRollGenerationRate;
     uint256 public additionMultiplier;
     uint256 public multiplicationMultiplier;
-    uint256 public minimumFortuneToRollSeize;
+    uint256 public minimumFortuneToRollGrab;
 
-    mapping(uint256 => Seizure) public seizures;
+    mapping(uint256 => Grabbening) public grabbenings;
     mapping(address => FortuneSeeker) public fortuneSeekers;
     mapping(uint256 => RollingDice) public rollingDie;
 
@@ -221,7 +221,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 _diceRollGenerationRate,
         uint256 _additionMultiplier,
         uint256 _multiplicationMultiplier,
-        uint256 _minimumFortuneToRollSeize,
+        uint256 _minimumFortuneToRollGrab,
         bytes32 keyHash,
         uint64 subscriptionId
     ) VRFConsumerBaseV2(_vrfCoordinator) Owned(_owner) {
@@ -238,7 +238,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         diceRollGenerationRate = _diceRollGenerationRate;
         additionMultiplier = _additionMultiplier;
         multiplicationMultiplier = _multiplicationMultiplier;
-        minimumFortuneToRollSeize = _minimumFortuneToRollSeize;
+        minimumFortuneToRollGrab = _minimumFortuneToRollGrab;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -294,7 +294,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 deposited = fortuneSeeker.deposit;
         uint256 fortune = getTotalFortuneFor(msg.sender, fortuneSeeker);
 
-        vaultBalance += fortune;
+        potBalance += fortune;
         totalFortune -= fortune;
         totalDeposited -= deposited;
 
@@ -355,7 +355,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             fortuneSeeker: msg.sender,
             action: RollAction.Add,
             multiplyStake: 0,
-            seizureIndex: 0
+            grabbeningIndex: 0
         });
 
         emit DiceRolled(
@@ -382,7 +382,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             fortuneSeeker: msg.sender,
             action: RollAction.Multiply,
             multiplyStake: stakeModulus,
-            seizureIndex: 0
+            grabbeningIndex: 0
         });
 
         emit DiceRolled(
@@ -397,41 +397,42 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         return requestId;
     }
 
-    function rollSeizure() external returns (uint256) {
-        Seizure storage seizure = seizures[seizureIndex];
+    function rollGrab() external returns (uint256) {
+        Grabbening storage grabbening = grabbenings[grabbeningIndex];
         require(
-            block.timestamp >= seizure.start && block.timestamp <= seizure.end,
-            "Must be during open seizure"
+            block.timestamp >= grabbening.start &&
+                block.timestamp <= grabbening.end,
+            "Must be during open grabbening"
         );
 
         FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
 
         require(
-            fortuneSeeker.fortune >= minimumFortuneToRollSeize,
-            "Must have enough fortune to roll seizure"
+            fortuneSeeker.fortune >= minimumFortuneToRollGrab,
+            "Must have enough fortune to roll grabbening"
         );
 
-        uint256 fee = (fortuneSeeker.fortune * seizure.fee) / PRECISION;
+        uint256 fee = (fortuneSeeker.fortune * grabbening.fee) / PRECISION;
 
         fortuneSeeker.fortune -= fee;
         totalFortune -= fee;
-        vaultBalance += fee;
+        potBalance += fee;
 
         uint256 requestId = rollDice(fortuneSeeker);
 
         rollingDie[requestId] = RollingDice({
             requestId: requestId,
             fortuneSeeker: msg.sender,
-            action: RollAction.Seizure,
+            action: RollAction.Grab,
             multiplyStake: 0,
-            seizureIndex: seizureIndex
+            grabbeningIndex: grabbeningIndex
         });
 
         emit DiceRolled(
             msg.sender,
-            RollAction.Seizure,
+            RollAction.Grab,
             0,
-            seizureIndex,
+            grabbeningIndex,
             requestId,
             block.timestamp
         );
@@ -439,64 +440,67 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         return requestId;
     }
 
-    function closeCurrentSeizure() external {
-        Seizure storage seizure = seizures[seizureIndex];
+    function closeCurrentGrabbening() external {
+        Grabbening storage grabbening = grabbenings[grabbeningIndex];
 
-        require(seizure.start > 0, "Must have started seizure");
-        require(block.timestamp > seizure.end, "Must be after seizure end");
+        require(grabbening.start > 0, "Must have started grabbening");
+        require(
+            block.timestamp > grabbening.end,
+            "Must be after grabbening end"
+        );
 
         uint totalRewards = 0;
 
         for (uint256 i = 0; i < DICE_SIDES; i++) {
             totalRewards +=
-                (seizure.rewardShares[i] * vaultBalance) /
+                (grabbening.rewardShares[i] * potBalance) /
                 PRECISION;
         }
 
-        seizure.vaultSnapshot = totalRewards;
-        vaultBalance -= totalRewards;
+        grabbening.vaultSnapshot = totalRewards;
+        potBalance -= totalRewards;
         totalFortune += totalRewards;
 
-        emit SeizureClosed(
-            seizureIndex,
-            vaultBalance,
+        emit GrabbeningClosed(
+            grabbeningIndex,
+            potBalance,
             totalRewards,
             block.timestamp
         );
 
-        seizureIndex += 1;
+        grabbeningIndex += 1;
     }
 
-    function calculateSeizureRewards(
+    function calculateGrabbeningRewards(
         address fortuneSeeker
     ) public view returns (uint256) {
-        uint256 seizureRewards = 0;
+        uint256 grabbeningRewards = 0;
 
-        for (uint256 i = 0; i < seizureIndex; i++) {
-            Seizure storage seizure = seizures[i];
+        for (uint256 i = 0; i < grabbeningIndex; i++) {
+            Grabbening storage grabbening = grabbenings[i];
 
-            uint256 roll = seizure.rolls[fortuneSeeker];
+            uint256 roll = grabbening.rolls[fortuneSeeker];
 
             if (roll == 0) {
                 continue;
             }
 
-            uint256 rollRewardShare = seizure.rewardShares[roll - 1];
+            uint256 rollRewardShare = grabbening.rewardShares[roll - 1];
 
-            uint256 rollReward = (rollRewardShare * seizure.vaultSnapshot) /
-                seizure.rewardSharesTotal;
+            uint256 rollReward = (rollRewardShare * grabbening.vaultSnapshot) /
+                grabbening.rewardSharesTotal;
 
-            seizureRewards += rollReward / seizure.seizorTallies[roll - 1];
+            grabbeningRewards += rollReward / grabbening.grabberTallies[roll - 1];
         }
 
-        return seizureRewards;
+        return grabbeningRewards;
     }
 
     /* -------------------------------------------------------------------------- */
     /*                               Admin Functions                              */
     /* -------------------------------------------------------------------------- */
 
-    function setSeizure(
+    function setGrabbening(
         uint256 index,
         uint256 start,
         uint256 end,
@@ -506,9 +510,9 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         require(gameStart > 0, "Must have game start time");
         require(start > 0, "Must have start time");
 
-        Seizure storage seizure = seizures[index];
+        Grabbening storage grabbening = grabbenings[index];
 
-        require(seizure.start == 0, "Seizure already exists");
+        require(grabbening.start == 0, "Grabbening already exists");
         require(end > start, "Must have end time");
         require(fee > 0, "Must have fee");
         require(rewardShares.length == DICE_SIDES, "Must have rewards");
@@ -519,13 +523,13 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             rewardSharesCopy[i] = rewardShares[i];
         }
 
-        seizure.start = start;
-        seizure.end = end;
-        seizure.fee = fee;
-        seizure.rewardShares = rewardSharesCopy;
+        grabbening.start = start;
+        grabbening.end = end;
+        grabbening.fee = fee;
+        grabbening.rewardShares = rewardSharesCopy;
 
         for (uint256 i = 0; i < DICE_SIDES; i++) {
-            seizure.rewardSharesTotal += rewardShares[i];
+            grabbening.rewardSharesTotal += rewardShares[i];
         }
     }
 
@@ -549,7 +553,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         address seekerAddress,
         FortuneSeeker storage fortuneSeeker
     ) internal view returns (uint256) {
-        return fortuneSeeker.fortune + calculateSeizureRewards(seekerAddress);
+        return fortuneSeeker.fortune + calculateGrabbeningRewards(seekerAddress);
     }
 
     function calculateDiceRolls(
@@ -639,25 +643,25 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         } else {
             fortuneSeeker.fortune -= fortuneRewards;
             totalFortune -= fortuneRewards;
-            vaultBalance += fortuneRewards;
+            potBalance += fortuneRewards;
         }
     }
 
-    function finalizeSeizureRoll(
+    function finalizeGrabRoll(
         uint256 diceRoll,
         RollingDice storage rollingDice
     ) internal {
-        uint256 prevRoll = seizures[rollingDice.seizureIndex].rolls[
+        uint256 prevRoll = grabbenings[rollingDice.grabbeningIndex].rolls[
             rollingDice.fortuneSeeker
         ];
 
         if (prevRoll > 0) {
-            seizures[rollingDice.seizureIndex].seizorTallies[prevRoll - 1] -= 1;
+            grabbenings[rollingDice.grabbeningIndex].grabberTallies[prevRoll - 1] -= 1;
         }
 
-        seizures[rollingDice.seizureIndex].seizorTallies[diceRoll - 1] += 1;
+        grabbenings[rollingDice.grabbeningIndex].grabberTallies[diceRoll - 1] += 1;
 
-        seizures[rollingDice.seizureIndex].rolls[
+        grabbenings[rollingDice.grabbeningIndex].rolls[
             rollingDice.fortuneSeeker
         ] = diceRoll;
     }
@@ -681,8 +685,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
                 fortuneSeeker,
                 rollingDice.multiplyStake
             );
-        } else if (rollingDice.action == RollAction.Seizure) {
-            finalizeSeizureRoll(diceRoll, rollingDice);
+        } else if (rollingDice.action == RollAction.Grab) {
+            finalizeGrabRoll(diceRoll, rollingDice);
         } else {
             revert("Invalid roll action");
         }
@@ -693,7 +697,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             rollingDice.fortuneSeeker,
             rollingDice.action,
             rollingDice.multiplyStake,
-            rollingDice.seizureIndex,
+            rollingDice.grabbeningIndex,
             requestId,
             diceRoll,
             block.timestamp
