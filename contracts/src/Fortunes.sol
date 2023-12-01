@@ -100,11 +100,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 fortuneLost,
         uint256 timestamp
     );
-    event Deposit(
-        address indexed player,
-        uint256 amount,
-        uint256 timestamp
-    );
+    event Deposit(address indexed player, uint256 amount, uint256 timestamp);
     event Withdraw(
         address indexed player,
         uint256 amount,
@@ -333,9 +329,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             msg.sender,
             player
         );
-        playerReward += STAKED_AVAX.getSharesByPooledAvax(
-            player.deposit
-        );
+        playerReward += STAKED_AVAX.getSharesByPooledAvax(player.deposit);
 
         totalDeposited -= player.deposit;
         totalFortune -= player.fortune;
@@ -343,11 +337,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         totalProtocolRewards += protocolReward;
 
         delete players[msg.sender];
-
-        require(
-            playerReward < STAKED_AVAX.balanceOf(address(this)),
-            "Not enough shares to withdraw"
-        );
 
         STAKED_AVAX.transfer(msg.sender, playerReward);
 
@@ -565,14 +554,18 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         address playerAddress,
         Player storage player
     ) internal view returns (uint256) {
-        return
-            player.fortune + calculateGrabbeningRewards(playerAddress);
+        return player.fortune + calculateGrabbeningRewards(playerAddress);
     }
 
-    function updateDiceRolls(
-        Player storage player
-    ) internal returns (uint256) {
-        // TODO: factor in first dice roll i.e last timestamp is 0
+    function updateDiceRolls(Player storage player) internal returns (uint256) {
+        if (block.timestamp < gameStart) {
+            return 0;
+        }
+
+        if (player.lastDiceRollTimestamp == 0) {
+            player.lastDiceRollTimestamp = gameStart;
+        }
+
         uint256 timeSinceLastDiceRoll = block.timestamp -
             player.lastDiceRollTimestamp;
         uint256 newDiceRolls = (timeSinceLastDiceRoll *
@@ -580,7 +573,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             player.deposit) / diceRateDepositFactor;
 
         player.diceRollsRemaining += newDiceRolls;
-				player.lastDiceRollTimestamp = block.timestamp;
+        player.lastDiceRollTimestamp = block.timestamp;
 
         return player.diceRollsRemaining;
     }
@@ -592,20 +585,19 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 totalRewards = STAKED_AVAX.balanceOf(address(this)) -
             STAKED_AVAX.getSharesByPooledAvax(totalDeposited);
 
-        uint256 playerFortune = getTotalFortuneFor(
-            playerAddress,
-            player
-        );
+        uint256 playerFortune = getTotalFortuneFor(playerAddress, player);
 
+        if (totalFortune == 0) {
+            return (0, 0);
+        }
+				
         uint256 playerReward = (totalRewards * playerFortune) / totalFortune;
         uint256 protocolReward = (playerReward * PROTOCOL_SHARE) / PRECISION;
 
         return (playerReward - protocolReward, protocolReward);
     }
 
-    function rollDice(
-        Player storage player
-    ) internal returns (uint256) {
+    function rollDice(Player storage player) internal returns (uint256) {
         require(player.deposit > 0, "Must have a deposit");
         require(
             block.timestamp >= gameStart && block.timestamp <= gameEnd,
@@ -634,10 +626,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         return requestId;
     }
 
-    function finalizeAddRoll(
-        uint256 diceRoll,
-        Player storage player
-    ) internal {
+    function finalizeAddRoll(uint256 diceRoll, Player storage player) internal {
         uint256 fortuneRewards = diceRoll * additionMultiplier;
         player.fortune += fortuneRewards;
         totalFortune += fortuneRewards;
@@ -690,20 +679,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256[] memory randomWords
     ) internal override {
         RollingDice storage rollingDice = rollingDie[requestId];
-        Player storage player = players[
-            rollingDice.player
-        ];
+        Player storage player = players[rollingDice.player];
 
         uint256 diceRoll = (randomWords[0] % DICE_SIDES) + 1;
 
         if (rollingDice.action == RollAction.Add) {
             finalizeAddRoll(diceRoll, player);
         } else if (rollingDice.action == RollAction.Multiply) {
-            finalizeMultiplyRoll(
-                diceRoll,
-                player,
-                rollingDice.multiplyStake
-            );
+            finalizeMultiplyRoll(diceRoll, player, rollingDice.multiplyStake);
         } else if (rollingDice.action == RollAction.Grab) {
             finalizeGrabRoll(diceRoll, rollingDice);
         } else {

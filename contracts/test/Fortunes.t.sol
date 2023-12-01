@@ -69,13 +69,35 @@ contract FortunesTest is Test {
             uint deposit,
             uint diceRollsRemaining,
             uint lastDiceRollTimestamp
-        ) = fortunes.fortuneSeekers(address(this));
+        ) = fortunes.players(address(this));
 
         assertEq(fortune, 0);
         assertEq(deposit, 90 * 1e18);
         assertEq(diceRollsRemaining, 0);
         assertEq(lastDiceRollTimestamp, 0);
         assertEq(fortunes.totalDeposited(), 90 * 1e18);
+
+        vm.warp(gameStart + 50);
+        mockTransferFrom(
+            address(sAvax),
+            address(this),
+            address(fortunes),
+            50 * 1e18
+        );
+        mockGetPooledAvaxByShares(50 * 1e18, 44 * 1e18);
+        fortunes.deposit(50 * 1e18);
+
+        (, deposit, diceRollsRemaining, lastDiceRollTimestamp) = fortunes
+            .players(address(this));
+
+        assertEq(deposit, 134 * 1e18);
+        assertEq(
+            diceRollsRemaining,
+            (50 * diceRollGenerationRate * 90 * 1e18) /
+                generationRateDepositFactor
+        );
+        assertEq(lastDiceRollTimestamp, gameStart + 50);
+        assertEq(fortunes.totalDeposited(), 134 * 1e18);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -130,7 +152,7 @@ contract FortunesTest is Test {
             uint deposit,
             uint diceRollsRemaining,
             uint lastDiceRollTimestamp
-        ) = fortunes.fortuneSeekers(address(this));
+        ) = fortunes.players(address(this));
 
         assertEq(fortune, 0);
         assertEq(deposit, 0);
@@ -192,20 +214,128 @@ contract FortunesTest is Test {
         fortunes.deposit(100 * 1e18);
 
         vm.warp(gameStart);
-				fortunes.forfeit();
+        fortunes.forfeit();
 
-				(
-						uint fortune,
-						uint deposit,
-						uint diceRollsRemaining,
-						uint lastDiceRollTimestamp
-				) = fortunes.fortuneSeekers(address(this));
+        (
+            uint fortune,
+            uint deposit,
+            uint diceRollsRemaining,
+            uint lastDiceRollTimestamp
+        ) = fortunes.players(address(this));
 
-				assertEq(fortune, 0);
-				assertEq(deposit, 0);
-				assertEq(diceRollsRemaining, 0);
-				assertEq(lastDiceRollTimestamp, 0);
-				assertEq(fortunes.totalDeposited(), 0);
+        assertEq(fortune, 0);
+        assertEq(deposit, 0);
+        assertEq(diceRollsRemaining, 0);
+        assertEq(lastDiceRollTimestamp, 0);
+        assertEq(fortunes.totalDeposited(), 0);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                Redeem Tests                                */
+    /* -------------------------------------------------------------------------- */
+
+    function test_RevertIf_RedeemBeforeGameEndAndNoDeposit() external {
+        vm.expectRevert(bytes("Must be after game has ended"));
+        fortunes.redeem();
+
+        vm.warp(gameEnd);
+        vm.expectRevert("Must have deposited");
+        fortunes.redeem();
+    }
+
+    function test_RevertIf_RedeemWithOutstandingRolls() external {
+        vm.warp(gameEnd);
+        stdstore
+            .target(address(fortunes))
+            .sig(fortunes.outstandingRolls.selector)
+            .checked_write(1);
+        vm.expectRevert(bytes("Must have no outstanding rolls"));
+        fortunes.redeem();
+    }
+
+    function test_RevertIf_RedeemMoreThanContractBalance() external {
+        mockGetPooledAvaxByShares(100 * 1e18, 90 * 1e18);
+        mockGetSharesByPooledAvax(90 * 1e18, 100 * 1e18);
+        mockBalanceOf(sAvax, address(fortunes), 10 * 1e18);
+        mockTransferFrom(
+            address(sAvax),
+            address(this),
+            address(fortunes),
+            100 * 1e18
+        );
+
+        fortunes.deposit(100 * 1e18);
+
+        vm.warp(gameEnd);
+        vm.expectRevert(stdError.arithmeticError); // should be impossible to get this error
+        fortunes.redeem();
+    }
+
+    function test_RedeemWithNoRewards() external {
+        mockGetPooledAvaxByShares(100 * 1e18, 90 * 1e18);
+        mockGetSharesByPooledAvax(90 * 1e18, 100 * 1e18);
+        mockBalanceOf(sAvax, address(fortunes), 100 * 1e18);
+        mockTransferFrom(
+            address(sAvax),
+            address(this),
+            address(fortunes),
+            100 * 1e18
+        );
+        mockTransfer(address(sAvax), address(this), 100 * 1e18);
+
+        fortunes.deposit(100 * 1e18);
+
+        vm.warp(gameEnd);
+        fortunes.redeem();
+
+        (
+            uint fortune,
+            uint deposit,
+            uint diceRollsRemaining,
+            uint lastDiceRollTimestamp
+        ) = fortunes.players(address(this));
+
+        assertEq(fortune, 0);
+        assertEq(deposit, 0);
+        assertEq(diceRollsRemaining, 0);
+        assertEq(lastDiceRollTimestamp, 0);
+        assertEq(fortunes.totalDeposited(), 0);
+    }
+
+    function test_Redeem() external {
+        // TODO: implement this after testing addRoll to test proper rewards distribution
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                 Roll Tests                                 */
+    /* -------------------------------------------------------------------------- */
+
+    function test_RevertIf_RollWithNoDeposit() external {
+        vm.expectRevert(bytes("Must have a deposit"));
+        fortunes.rollAdd();
+
+        vm.expectRevert(bytes("Must have a deposit"));
+        fortunes.rollMultiply(0);
+
+        stdstore
+            .target(address(fortunes))
+            .sig("grabbenings(uint256)")
+            .with_key(uint256(0))
+            .checked_write(1);
+        stdstore
+            .target(address(fortunes))
+            .sig("grabbenings(uint256)")
+            .with_key(uint256(0))
+            .depth(1)
+            .checked_write(10);
+				stdstore
+						.target(address(fortunes))
+						.sig("players(address)")
+						.with_key(address(this))
+						.checked_write(minimumFortuneToRollGrab);
+
+        vm.expectRevert(bytes("Must have a deposit"));
+        fortunes.rollGrab();
     }
 
     /* -------------------------------------------------------------------------- */
