@@ -1,6 +1,7 @@
 [profile.default]
 src = "src"
 out = "out"
+solc_version = "0.8.23"
 libs = ["lib"]
 remappings = [
 	"ds-test/=lib/forge-std/lib/ds-test/src/",

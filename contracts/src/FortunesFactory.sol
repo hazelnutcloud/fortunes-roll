@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {Owned} from "solmate/auth/Owned.sol";
-import {Fortunes} from "./fortunes.sol";
+import {Fortunes} from "./Fortunes.sol";
 import {IStakedAvax} from "./benqi/IStakedAvax.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
 contract FortunesFactory is Owned {
-    event FortuneCreated(uint256 indexed index, address indexed fortune);
+    event FortuneCreated(uint256 indexed index, Fortunes indexed fortune);
 
     address public vrfCoordinator;
     address payable public stakedAvax;
@@ -17,7 +17,7 @@ contract FortunesFactory is Owned {
 
     uint256 public index;
 
-    mapping(uint256 => address) public fortunes;
+    mapping(uint256 => Fortunes) public fortunes;
 
     constructor(
         address owner,
@@ -38,31 +38,29 @@ contract FortunesFactory is Owned {
         uint256 gameStart,
         uint256 gameEnd,
         uint256 diceRollGenerationRate,
+				uint256 generationRateDepositFactor,
         uint256 additionMultiplier,
-        uint256 multiplicationMultiplier,
-        uint256 minimumFortuneToRollSeize
-    ) public onlyOwner returns (uint256) {
-        fortunes[index] = address(
-            new Fortunes(
-                address(this),
-                vrfCoordinator,
-                stakedAvax,
-                linkToken,
-                gameStart,
-                gameEnd,
-                diceRollGenerationRate,
-                additionMultiplier,
-                multiplicationMultiplier,
-                minimumFortuneToRollSeize,
-                keyHash,
-                subscriptionId
-            )
+        uint256 minimumFortuneToRollGrab
+    ) public onlyOwner returns (Fortunes) {
+        fortunes[index] = new Fortunes(
+            address(this),
+            vrfCoordinator,
+            stakedAvax,
+            linkToken,
+            gameStart,
+            gameEnd,
+            diceRollGenerationRate,
+						generationRateDepositFactor,
+            additionMultiplier,
+            minimumFortuneToRollGrab,
+            keyHash,
+            subscriptionId
         );
 
         emit FortuneCreated(index, fortunes[index]);
 
         index++;
-        return index;
+        return fortunes[index - 1];
     }
 
     function setSeizure(
