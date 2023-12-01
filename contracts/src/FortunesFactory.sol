@@ -17,7 +17,7 @@ contract FortunesFactory is Owned {
 
     uint256 public index;
 
-    mapping(uint256 => address payable) public fortunes;
+    mapping(uint256 => address) public fortunes;
 
     constructor(
         address owner,
@@ -42,7 +42,7 @@ contract FortunesFactory is Owned {
         uint256 multiplicationMultiplier,
         uint256 minimumFortuneToRollSeize
     ) public onlyOwner returns (uint256) {
-        fortunes[index] = payable(
+        fortunes[index] = address(
             new Fortunes(
                 address(this),
                 vrfCoordinator,
@@ -73,7 +73,7 @@ contract FortunesFactory is Owned {
         uint256 fee,
         uint256[] memory rewardShares
     ) external onlyOwner {
-        Fortunes(fortunes[gameIndex]).setSeizure(
+        Fortunes(fortunes[gameIndex]).setGrabbening(
             seizureIndex,
             start,
             end,
