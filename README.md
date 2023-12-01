@@ -13,6 +13,7 @@ The game's climax is as exciting as its progression: at the end, the generated y
 
 - [x] Change deposit to sAVAX directly instead of AVAX
 - [x] ~~Fix bug where seizure rolls can land after seizure period ends~~ This was not a bug, false alarm
+- [ ] Fix bug where depositing more does not update the player's remaining dice rolls. This opens up an exploit where players can deposit more to incorrectly get more rolls.
 - [ ] Write tests
 - [ ] Add referral system
 - [ ] Write deployment scripts

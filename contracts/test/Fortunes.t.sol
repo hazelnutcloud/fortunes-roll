@@ -22,7 +22,7 @@ contract FortunesTest is Test {
     uint256 gameStart = block.timestamp + 10;
     uint256 gameEnd = block.timestamp + 100;
     uint256 diceRollGenerationRate = 278;
-    uint256 generationRateDepositFactor = 10; // ~ 1 roll per hour per 10 AVAX
+    uint256 generationRateDepositFactor = 10 * 1e18; // ~ 1 roll per hour per 10 AVAX
     uint256 additionMultiplier = 100 * PRECISION; // 100 fortune per dice point
     uint256 minimumFortuneToRollGrab = 500 * PRECISION;
 

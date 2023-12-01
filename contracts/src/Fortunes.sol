@@ -91,28 +91,28 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     /* -------------------------------------------------------------------------- */
 
     event FortuneGained(
-        address indexed fortuneSeeker,
+        address indexed player,
         uint256 fortuneGained,
         uint256 timestamp
     );
     event FortuneLost(
-        address indexed fortuneSeeker,
+        address indexed player,
         uint256 fortuneLost,
         uint256 timestamp
     );
     event Deposit(
-        address indexed fortuneSeeker,
+        address indexed player,
         uint256 amount,
         uint256 timestamp
     );
     event Withdraw(
-        address indexed fortuneSeeker,
+        address indexed player,
         uint256 amount,
         bytes32 kind,
         uint256 timestamp
     );
     event DiceRolled(
-        address indexed fortuneSeeker,
+        address indexed player,
         RollAction action,
         uint256 multiplyStake,
         uint256 grabbeningIndex,
@@ -120,7 +120,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 timestamp
     );
     event DiceLanded(
-        address indexed fortuneSeeker,
+        address indexed player,
         RollAction action,
         uint256 multiplyStake,
         uint256 grabbeningIndex,
@@ -141,13 +141,13 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
     uint8 private constant DICE_SIDES = 12;
     uint256 private constant PRECISION = 1e6;
-    uint256 public constant PROTOCOL_SHARE = 50000; // 5% of generated yield goes to protocol
+    uint256 private constant PROTOCOL_SHARE = 50000; // 5% of generated yield goes to protocol
 
     bytes32 public constant WITHDRAW = keccak256(abi.encodePacked("withdraw"));
     bytes32 public constant FORFEIT = keccak256(abi.encodePacked("forfeit"));
     bytes32 public constant REDEEM = keccak256(abi.encodePacked("redeem"));
 
-    struct FortuneSeeker {
+    struct Player {
         uint256 fortune;
         uint256 deposit;
         uint256 diceRollsRemaining;
@@ -159,7 +159,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 end;
         uint256 fee;
         uint256[DICE_SIDES] rewardShares; // denominated in PRECISION e.g 50% = 0.5 * PRECISION. Total should never exceed 1 * PRECISION
-        uint256[DICE_SIDES] grabberTallies; // number of seekers who rolled each side
+        uint256[DICE_SIDES] grabberTallies; // number of players who rolled each side
         uint256 rewardSharesTotal;
         mapping(address => uint256) rolls;
         uint256 rewardsSnapshot;
@@ -167,7 +167,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
     struct RollingDice {
         uint256 requestId;
-        address fortuneSeeker;
+        address player;
         uint256 multiplyStake;
         uint256 grabbeningIndex;
         RollAction action;
@@ -205,7 +205,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     uint256 public minimumFortuneToRollGrab;
 
     mapping(uint256 => Grabbening) public grabbenings;
-    mapping(address => FortuneSeeker) public fortuneSeekers;
+    mapping(address => Player) public players;
     mapping(uint256 => RollingDice) public rollingDie;
 
     /* -------------------------------------------------------------------------- */
@@ -249,35 +249,35 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     function deposit(uint256 shareAmount) external {
         require(shareAmount > 0, "Must deposit more than 0");
 
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
+
+        updateDiceRolls(player);
 
         uint256 underlyingAmount = STAKED_AVAX.getPooledAvaxByShares(
             shareAmount
         );
 
-        fortuneSeeker.deposit += underlyingAmount;
+        player.deposit += underlyingAmount;
         totalDeposited += underlyingAmount;
 
         STAKED_AVAX.transferFrom(msg.sender, address(this), shareAmount);
 
-        emit Deposit(msg.sender, underlyingAmount, block.timestamp);
+        emit Deposit(msg.sender, shareAmount, block.timestamp);
     }
 
     function withdraw() public nonReentrant {
         require(block.timestamp < gameStart, "Must be before game start");
 
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
 
-        require(fortuneSeeker.deposit > 0, "Must have a deposit");
+        require(player.deposit > 0, "Must have a deposit");
 
-				uint256 deposited = fortuneSeeker.deposit;
+        uint256 deposited = player.deposit;
 
         totalDeposited -= deposited;
-        fortuneSeeker.deposit = 0;
+        player.deposit = 0;
 
-        uint256 amount = STAKED_AVAX.getSharesByPooledAvax(
-            deposited
-        );
+        uint256 amount = STAKED_AVAX.getSharesByPooledAvax(deposited);
 
         require(
             amount <= STAKED_AVAX.balanceOf(address(this)),
@@ -295,18 +295,18 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             "Must be during game"
         );
 
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
 
-        require(fortuneSeeker.deposit > 0, "Must have a deposit");
+        require(player.deposit > 0, "Must have a deposit");
 
-        uint256 deposited = fortuneSeeker.deposit;
-        uint256 fortune = getTotalFortuneFor(msg.sender, fortuneSeeker);
+        uint256 deposited = player.deposit;
+        uint256 fortune = getTotalFortuneFor(msg.sender, player);
 
         potBalance += fortune;
         totalFortune -= fortune;
         totalDeposited -= deposited;
 
-        delete fortuneSeekers[msg.sender];
+        delete players[msg.sender];
 
         uint256 amount = STAKED_AVAX.getSharesByPooledAvax(deposited);
 
@@ -325,44 +325,44 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         require(block.timestamp >= gameEnd, "Must be after game has ended");
         require(outstandingRolls == 0, "Must have no outstanding rolls");
 
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
 
-        require(fortuneSeeker.deposit > 0, "Must have deposited");
+        require(player.deposit > 0, "Must have deposited");
 
-        (uint256 seekerReward, uint256 protocolReward) = calculateRewardFor(
+        (uint256 playerReward, uint256 protocolReward) = calculateRewardFor(
             msg.sender,
-            fortuneSeeker
+            player
         );
-        seekerReward += STAKED_AVAX.getSharesByPooledAvax(
-            fortuneSeeker.deposit
+        playerReward += STAKED_AVAX.getSharesByPooledAvax(
+            player.deposit
         );
 
-        totalDeposited -= fortuneSeeker.deposit;
-        totalFortune -= fortuneSeeker.fortune;
+        totalDeposited -= player.deposit;
+        totalFortune -= player.fortune;
 
         totalProtocolRewards += protocolReward;
 
-        delete fortuneSeekers[msg.sender];
+        delete players[msg.sender];
 
         require(
-            seekerReward < STAKED_AVAX.balanceOf(address(this)),
+            playerReward < STAKED_AVAX.balanceOf(address(this)),
             "Not enough shares to withdraw"
         );
 
-        STAKED_AVAX.transfer(msg.sender, seekerReward);
+        STAKED_AVAX.transfer(msg.sender, playerReward);
 
-        emit Withdraw(msg.sender, seekerReward, REDEEM, block.timestamp);
-        emit FortuneLost(msg.sender, fortuneSeeker.fortune, block.timestamp);
+        emit Withdraw(msg.sender, playerReward, REDEEM, block.timestamp);
+        emit FortuneLost(msg.sender, player.fortune, block.timestamp);
     }
 
     function rollAdd() external returns (uint256) {
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
 
-        uint256 requestId = rollDice(fortuneSeeker);
+        uint256 requestId = rollDice(player);
 
         rollingDie[requestId] = RollingDice({
             requestId: requestId,
-            fortuneSeeker: msg.sender,
+            player: msg.sender,
             action: RollAction.Add,
             multiplyStake: 0,
             grabbeningIndex: 0
@@ -383,13 +383,13 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     function rollMultiply(uint256 stake) external returns (uint256) {
         uint256 stakeModulus = (stake % DICE_SIDES) + 1;
 
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
 
-        uint256 requestId = rollDice(fortuneSeeker);
+        uint256 requestId = rollDice(player);
 
         rollingDie[requestId] = RollingDice({
             requestId: requestId,
-            fortuneSeeker: msg.sender,
+            player: msg.sender,
             action: RollAction.Multiply,
             multiplyStake: stakeModulus,
             grabbeningIndex: 0
@@ -415,24 +415,24 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             "Must be during open grabbening"
         );
 
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+        Player storage player = players[msg.sender];
 
         require(
-            fortuneSeeker.fortune >= minimumFortuneToRollGrab,
+            player.fortune >= minimumFortuneToRollGrab,
             "Must have enough fortune to roll grabbening"
         );
 
-        uint256 fee = (fortuneSeeker.fortune * grabbening.fee) / PRECISION;
+        uint256 fee = (player.fortune * grabbening.fee) / PRECISION;
 
-        fortuneSeeker.fortune -= fee;
+        player.fortune -= fee;
         totalFortune -= fee;
         potBalance += fee;
 
-        uint256 requestId = rollDice(fortuneSeeker);
+        uint256 requestId = rollDice(player);
 
         rollingDie[requestId] = RollingDice({
             requestId: requestId,
-            fortuneSeeker: msg.sender,
+            player: msg.sender,
             action: RollAction.Grab,
             multiplyStake: 0,
             grabbeningIndex: grabbeningIndex
@@ -482,14 +482,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     }
 
     function calculateGrabbeningRewards(
-        address fortuneSeeker
+        address player
     ) public view returns (uint256) {
         uint256 grabbeningRewards = 0;
 
         for (uint256 i = 0; i < grabbeningIndex; i++) {
             Grabbening storage grabbening = grabbenings[i];
 
-            uint256 roll = grabbening.rolls[fortuneSeeker];
+            uint256 roll = grabbening.rolls[player];
 
             if (roll == 0) {
                 continue;
@@ -562,65 +562,66 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     /* -------------------------------------------------------------------------- */
 
     function getTotalFortuneFor(
-        address seekerAddress,
-        FortuneSeeker storage fortuneSeeker
+        address playerAddress,
+        Player storage player
     ) internal view returns (uint256) {
         return
-            fortuneSeeker.fortune + calculateGrabbeningRewards(seekerAddress);
+            player.fortune + calculateGrabbeningRewards(playerAddress);
     }
 
-    function calculateDiceRolls(
-        FortuneSeeker storage fortuneSeeker
-    ) internal view returns (uint256) {
+    function updateDiceRolls(
+        Player storage player
+    ) internal returns (uint256) {
+        // TODO: factor in first dice roll i.e last timestamp is 0
         uint256 timeSinceLastDiceRoll = block.timestamp -
-            fortuneSeeker.lastDiceRollTimestamp;
+            player.lastDiceRollTimestamp;
         uint256 newDiceRolls = (timeSinceLastDiceRoll *
             diceRollGenerationRate *
-            fortuneSeeker.deposit) / diceRateDepositFactor;
-        uint256 diceRollsRemaining = fortuneSeeker.diceRollsRemaining +
-            newDiceRolls;
+            player.deposit) / diceRateDepositFactor;
 
-        return diceRollsRemaining;
+        player.diceRollsRemaining += newDiceRolls;
+				player.lastDiceRollTimestamp = block.timestamp;
+
+        return player.diceRollsRemaining;
     }
 
     function calculateRewardFor(
-        address seekerAddress,
-        FortuneSeeker storage fortuneSeeker
+        address playerAddress,
+        Player storage player
     ) internal view returns (uint256, uint256) {
         uint256 totalRewards = STAKED_AVAX.balanceOf(address(this)) -
             STAKED_AVAX.getSharesByPooledAvax(totalDeposited);
 
-        uint256 seekerFortune = getTotalFortuneFor(
-            seekerAddress,
-            fortuneSeeker
+        uint256 playerFortune = getTotalFortuneFor(
+            playerAddress,
+            player
         );
 
-        uint256 seekerReward = (totalRewards * seekerFortune) / totalFortune;
-        uint256 protocolReward = (seekerReward * PROTOCOL_SHARE) / PRECISION;
+        uint256 playerReward = (totalRewards * playerFortune) / totalFortune;
+        uint256 protocolReward = (playerReward * PROTOCOL_SHARE) / PRECISION;
 
-        return (seekerReward - protocolReward, protocolReward);
+        return (playerReward - protocolReward, protocolReward);
     }
 
     function rollDice(
-        FortuneSeeker storage fortuneSeeker
+        Player storage player
     ) internal returns (uint256) {
-        require(fortuneSeeker.deposit > 0, "Must have a deposit");
+        require(player.deposit > 0, "Must have a deposit");
         require(
             block.timestamp >= gameStart && block.timestamp <= gameEnd,
             "Must be during game"
         );
 
-        uint256 diceRollsRemaining = calculateDiceRolls(fortuneSeeker);
+        updateDiceRolls(player);
 
         require(
-            diceRollsRemaining >= 1 * PRECISION,
+            player.diceRollsRemaining >= 1 * PRECISION,
             "Must have dice rolls remaining"
         );
 
         outstandingRolls += 1;
 
-        fortuneSeeker.diceRollsRemaining = diceRollsRemaining - (1 * PRECISION);
-        fortuneSeeker.lastDiceRollTimestamp = block.timestamp;
+        player.diceRollsRemaining -= (1 * PRECISION);
 
         uint256 requestId = COORDINATOR.requestRandomWords(
             KEY_HASH,
@@ -635,27 +636,27 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
     function finalizeAddRoll(
         uint256 diceRoll,
-        FortuneSeeker storage fortuneSeeker
+        Player storage player
     ) internal {
         uint256 fortuneRewards = diceRoll * additionMultiplier;
-        fortuneSeeker.fortune += fortuneRewards;
+        player.fortune += fortuneRewards;
         totalFortune += fortuneRewards;
     }
 
     function finalizeMultiplyRoll(
         uint256 diceRoll,
-        FortuneSeeker storage fortuneSeeker,
+        Player storage player,
         uint256 stake
     ) internal {
         bool isWin = diceRoll >= stake;
 
-        uint256 fortuneRewards = (fortuneSeeker.fortune * stake) / DICE_SIDES;
+        uint256 fortuneRewards = (player.fortune * stake) / DICE_SIDES;
 
         if (isWin) {
-            fortuneSeeker.fortune += fortuneRewards;
+            player.fortune += fortuneRewards;
             totalFortune += fortuneRewards;
         } else {
-            fortuneSeeker.fortune -= fortuneRewards;
+            player.fortune -= fortuneRewards;
             totalFortune -= fortuneRewards;
             potBalance += fortuneRewards;
         }
@@ -666,7 +667,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         RollingDice storage rollingDice
     ) internal {
         uint256 prevRoll = grabbenings[rollingDice.grabbeningIndex].rolls[
-            rollingDice.fortuneSeeker
+            rollingDice.player
         ];
 
         if (prevRoll > 0) {
@@ -680,7 +681,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         ] += 1;
 
         grabbenings[rollingDice.grabbeningIndex].rolls[
-            rollingDice.fortuneSeeker
+            rollingDice.player
         ] = diceRoll;
     }
 
@@ -689,18 +690,18 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256[] memory randomWords
     ) internal override {
         RollingDice storage rollingDice = rollingDie[requestId];
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[
-            rollingDice.fortuneSeeker
+        Player storage player = players[
+            rollingDice.player
         ];
 
         uint256 diceRoll = (randomWords[0] % DICE_SIDES) + 1;
 
         if (rollingDice.action == RollAction.Add) {
-            finalizeAddRoll(diceRoll, fortuneSeeker);
+            finalizeAddRoll(diceRoll, player);
         } else if (rollingDice.action == RollAction.Multiply) {
             finalizeMultiplyRoll(
                 diceRoll,
-                fortuneSeeker,
+                player,
                 rollingDice.multiplyStake
             );
         } else if (rollingDice.action == RollAction.Grab) {
@@ -714,7 +715,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         outstandingRolls -= 1;
 
         emit DiceLanded(
-            rollingDice.fortuneSeeker,
+            rollingDice.player,
             rollingDice.action,
             rollingDice.multiplyStake,
             rollingDice.grabbeningIndex,
