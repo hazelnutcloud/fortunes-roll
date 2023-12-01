@@ -290,13 +290,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     }
 
     function forfeit() external nonReentrant {
-        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
-
-        require(fortuneSeeker.deposit > 0, "Must have a deposit");
         require(
             block.timestamp >= gameStart && block.timestamp <= gameEnd,
             "Must be during game"
         );
+
+        FortuneSeeker storage fortuneSeeker = fortuneSeekers[msg.sender];
+
+        require(fortuneSeeker.deposit > 0, "Must have a deposit");
 
         uint256 deposited = fortuneSeeker.deposit;
         uint256 fortune = getTotalFortuneFor(msg.sender, fortuneSeeker);
@@ -310,7 +311,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 amount = STAKED_AVAX.getSharesByPooledAvax(deposited);
 
         require(
-            amount < STAKED_AVAX.balanceOf(address(this)),
+            amount <= STAKED_AVAX.balanceOf(address(this)),
             "Not enough shares to withdraw"
         );
 

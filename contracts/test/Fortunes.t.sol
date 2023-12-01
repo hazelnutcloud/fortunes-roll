@@ -45,6 +45,10 @@ contract FortunesTest is Test {
         );
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                                Deposit Tests                               */
+    /* -------------------------------------------------------------------------- */
+
     function test_RevertIf_DepositIsZero() external {
         vm.expectRevert(bytes("Must deposit more than 0"));
         fortunes.deposit(0);
@@ -74,6 +78,10 @@ contract FortunesTest is Test {
         assertEq(fortunes.totalDeposited(), 90 * 1e18);
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                               Withdraw Tests                               */
+    /* -------------------------------------------------------------------------- */
+
     function test_RevertIf_WithdrawAfterGameStart() external {
         vm.warp(gameStart + 1);
         vm.expectRevert(bytes("Must be before game start"));
@@ -102,7 +110,7 @@ contract FortunesTest is Test {
         fortunes.withdraw();
     }
 
-		function test_Withdraw() external {
+    function test_Withdraw() external {
         mockGetPooledAvaxByShares(100 * 1e18, 90 * 1e18);
         mockGetSharesByPooledAvax(90 * 1e18, 100 * 1e18);
         mockBalanceOf(sAvax, address(fortunes), 100 * 1e18);
@@ -112,32 +120,122 @@ contract FortunesTest is Test {
             address(fortunes),
             100 * 1e18
         );
-				mockTransfer(
-					address(sAvax),
-					address(this),
-					100 * 1e18
-				);
+        mockTransfer(address(sAvax), address(this), 100 * 1e18);
 
-				fortunes.deposit(100 * 1e18);
-				fortunes.withdraw();
-		}
+        fortunes.deposit(100 * 1e18);
+        fortunes.withdraw();
+
+        (
+            uint fortune,
+            uint deposit,
+            uint diceRollsRemaining,
+            uint lastDiceRollTimestamp
+        ) = fortunes.fortuneSeekers(address(this));
+
+        assertEq(fortune, 0);
+        assertEq(deposit, 0);
+        assertEq(diceRollsRemaining, 0);
+        assertEq(lastDiceRollTimestamp, 0);
+        assertEq(fortunes.totalDeposited(), 0);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                                Forfeit Tests                               */
+    /* -------------------------------------------------------------------------- */
+
+    function test_RevertIf_ForfeitOutsideGame() external {
+        vm.warp(gameStart - 1);
+        vm.expectRevert(bytes("Must be during game"));
+        fortunes.forfeit();
+
+        vm.warp(gameEnd + 1);
+        vm.expectRevert(bytes("Must be during game"));
+        fortunes.forfeit();
+    }
+
+    function test_RevertIf_ForfeitWithNoDeposit() external {
+        vm.warp(gameStart);
+        vm.expectRevert(bytes("Must have a deposit"));
+        fortunes.forfeit();
+    }
+
+    function test_RevertIf_ForfeitMoreThanContractBalance() external {
+        mockGetPooledAvaxByShares(100 * 1e18, 90 * 1e18);
+        mockGetSharesByPooledAvax(90 * 1e18, 100 * 1e18);
+        mockBalanceOf(sAvax, address(fortunes), 10 * 1e18);
+        mockTransferFrom(
+            address(sAvax),
+            address(this),
+            address(fortunes),
+            100 * 1e18
+        );
+
+        fortunes.deposit(100 * 1e18);
+
+        vm.warp(gameStart);
+        vm.expectRevert("Not enough shares to withdraw");
+        fortunes.forfeit();
+    }
+
+    function test_Forfeit() external {
+        mockGetPooledAvaxByShares(100 * 1e18, 90 * 1e18);
+        mockGetSharesByPooledAvax(90 * 1e18, 100 * 1e18);
+        mockBalanceOf(sAvax, address(fortunes), 100 * 1e18);
+        mockTransferFrom(
+            address(sAvax),
+            address(this),
+            address(fortunes),
+            100 * 1e18
+        );
+        mockTransfer(address(sAvax), address(this), 100 * 1e18);
+
+        fortunes.deposit(100 * 1e18);
+
+        vm.warp(gameStart);
+				fortunes.forfeit();
+
+				(
+						uint fortune,
+						uint deposit,
+						uint diceRollsRemaining,
+						uint lastDiceRollTimestamp
+				) = fortunes.fortuneSeekers(address(this));
+
+				assertEq(fortune, 0);
+				assertEq(deposit, 0);
+				assertEq(diceRollsRemaining, 0);
+				assertEq(lastDiceRollTimestamp, 0);
+				assertEq(fortunes.totalDeposited(), 0);
+    }
 
     /* -------------------------------------------------------------------------- */
     /*                                    Mocks                                   */
     /* -------------------------------------------------------------------------- */
 
-    function mockGetPooledAvaxByShares(uint256 shares, uint256 pooledAvax) internal {
+    function mockGetPooledAvaxByShares(
+        uint256 shares,
+        uint256 pooledAvax
+    ) internal {
         vm.mockCall(
             sAvax,
-            abi.encodeWithSelector(IStakedAvax.getPooledAvaxByShares.selector, shares),
+            abi.encodeWithSelector(
+                IStakedAvax.getPooledAvaxByShares.selector,
+                shares
+            ),
             abi.encode(pooledAvax)
         );
     }
 
-    function mockGetSharesByPooledAvax(uint256 pooledAvax, uint256 shares) internal {
+    function mockGetSharesByPooledAvax(
+        uint256 pooledAvax,
+        uint256 shares
+    ) internal {
         vm.mockCall(
             sAvax,
-            abi.encodeWithSelector(IStakedAvax.getSharesByPooledAvax.selector, pooledAvax),
+            abi.encodeWithSelector(
+                IStakedAvax.getSharesByPooledAvax.selector,
+                pooledAvax
+            ),
             abi.encode(shares)
         );
     }
@@ -158,15 +256,19 @@ contract FortunesTest is Test {
         vm.expectCall(contractAddr, data);
     }
 
-		function mockTransfer(address contractAddr, address to, uint256 amount) internal {
-				bytes memory data = abi.encodeWithSelector(
-						ERC20.transfer.selector,
-						to,
-						amount
-				);
-				vm.mockCall(contractAddr, data, abi.encode(0));
-				vm.expectCall(contractAddr, data);
-		}
+    function mockTransfer(
+        address contractAddr,
+        address to,
+        uint256 amount
+    ) internal {
+        bytes memory data = abi.encodeWithSelector(
+            ERC20.transfer.selector,
+            to,
+            amount
+        );
+        vm.mockCall(contractAddr, data, abi.encode(0));
+        vm.expectCall(contractAddr, data);
+    }
 
     function mockBalanceOf(
         address contractAddr,
