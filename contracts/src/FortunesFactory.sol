@@ -38,10 +38,20 @@ contract FortunesFactory is Owned {
         uint256 gameStart,
         uint256 gameEnd,
         uint256 diceRollGenerationRate,
-				uint256 generationRateDepositFactor,
+        uint256 generationRateDepositFactor,
         uint256 additionMultiplier,
-        uint256 minimumFortuneToRollGrab
+        uint256 minimumFortuneToRollGrab,
+				uint256 baseDiceRolls
     ) public onlyOwner returns (Fortunes) {
+        require(
+            gameStart > block.timestamp,
+            "FortunesFactory: gameStart must be in the future"
+        );
+				require(
+						gameEnd > gameStart,
+						"FortunesFactory: gameEnd must be after gameStart"
+				);
+
         fortunes[index] = new Fortunes(
             address(this),
             vrfCoordinator,
@@ -50,9 +60,10 @@ contract FortunesFactory is Owned {
             gameStart,
             gameEnd,
             diceRollGenerationRate,
-						generationRateDepositFactor,
+            generationRateDepositFactor,
             additionMultiplier,
             minimumFortuneToRollGrab,
+						baseDiceRolls,
             keyHash,
             subscriptionId
         );

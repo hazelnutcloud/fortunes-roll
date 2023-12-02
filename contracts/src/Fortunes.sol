@@ -148,6 +148,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 deposit;
         uint256 diceRollsRemaining;
         uint256 lastDiceRollTimestamp;
+        bool hasPendingRoll;
     }
 
     struct Grabbening {
@@ -162,7 +163,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     }
 
     struct RollingDice {
-        uint256 requestId;
         address player;
         uint256 multiplyStake;
         uint256 grabbeningIndex;
@@ -199,6 +199,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     uint256 public diceRateDepositFactor; // how much to multiply the dice roll generation rate by based on deposit size. Must be in same precision as native token (e.g. 1e18 for AVAX)
     uint256 public additionMultiplier;
     uint256 public minimumFortuneToRollGrab;
+    uint256 public baseDiceRolls;
 
     mapping(uint256 => Grabbening) public grabbenings;
     mapping(address => Player) public players;
@@ -219,6 +220,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 _diceRateDepositFactor,
         uint256 _additionMultiplier,
         uint256 _minimumFortuneToRollGrab,
+        uint256 _baseDiceRolls,
         bytes32 keyHash,
         uint64 subscriptionId
     ) VRFConsumerBaseV2(_vrfCoordinator) Owned(_owner) {
@@ -236,6 +238,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         diceRateDepositFactor = _diceRateDepositFactor;
         additionMultiplier = _additionMultiplier;
         minimumFortuneToRollGrab = _minimumFortuneToRollGrab;
+        baseDiceRolls = _baseDiceRolls;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -350,7 +353,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 requestId = rollDice(player);
 
         rollingDie[requestId] = RollingDice({
-            requestId: requestId,
             player: msg.sender,
             action: RollAction.Add,
             multiplyStake: 0,
@@ -377,7 +379,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 requestId = rollDice(player);
 
         rollingDie[requestId] = RollingDice({
-            requestId: requestId,
             player: msg.sender,
             action: RollAction.Multiply,
             multiplyStake: stakeModulus,
@@ -420,7 +421,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 requestId = rollDice(player);
 
         rollingDie[requestId] = RollingDice({
-            requestId: requestId,
             player: msg.sender,
             action: RollAction.Grab,
             multiplyStake: 0,
@@ -508,15 +508,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 fee,
         uint256[] calldata rewardShares
     ) external onlyOwner {
-        require(gameStart > 0, "Must have game start time");
-        require(start > 0, "Must have start time");
+        require(start >= gameStart && end <= gameEnd, "Must be during game");
+        require(end > start, "Must have end time");
+        require(fee > 0, "Must have fee");
+        require(rewardShares.length == DICE_SIDES, "Must have rewards");
 
         Grabbening storage grabbening = grabbenings[index];
 
         require(grabbening.start == 0, "Grabbening already exists");
-        require(end > start, "Must have end time");
-        require(fee > 0, "Must have fee");
-        require(rewardShares.length == DICE_SIDES, "Must have rewards");
 
         uint256[DICE_SIDES] memory rewardSharesCopy;
 
@@ -564,15 +563,14 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         if (player.lastDiceRollTimestamp == 0) {
             player.lastDiceRollTimestamp = gameStart;
+            player.diceRollsRemaining = baseDiceRolls;
         }
 
-        uint256 timeSinceLastDiceRoll = block.timestamp -
-            player.lastDiceRollTimestamp;
-        uint256 newDiceRolls = (timeSinceLastDiceRoll *
-            diceRollGenerationRate *
-            player.deposit) / diceRateDepositFactor;
-
-        player.diceRollsRemaining += newDiceRolls;
+        player.diceRollsRemaining +=
+            ((block.timestamp - player.lastDiceRollTimestamp) *
+                diceRollGenerationRate *
+                player.deposit) /
+            diceRateDepositFactor;
         player.lastDiceRollTimestamp = block.timestamp;
 
         return player.diceRollsRemaining;
@@ -590,7 +588,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         if (totalFortune == 0) {
             return (0, 0);
         }
-				
+
         uint256 playerReward = (totalRewards * playerFortune) / totalFortune;
         uint256 protocolReward = (playerReward * PROTOCOL_SHARE) / PRECISION;
 
@@ -598,6 +596,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     }
 
     function rollDice(Player storage player) internal returns (uint256) {
+        require(!player.hasPendingRoll, "Must not have pending roll");
         require(player.deposit > 0, "Must have a deposit");
         require(
             block.timestamp >= gameStart && block.timestamp <= gameEnd,
@@ -614,6 +613,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         outstandingRolls += 1;
 
         player.diceRollsRemaining -= (1 * PRECISION);
+        player.hasPendingRoll = true;
 
         uint256 requestId = COORDINATOR.requestRandomWords(
             KEY_HASH,
@@ -635,11 +635,13 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     function finalizeMultiplyRoll(
         uint256 diceRoll,
         Player storage player,
-        uint256 stake
+        uint256 stake,
+        address playerAddress
     ) internal {
         bool isWin = diceRoll >= stake;
 
-        uint256 fortuneRewards = (player.fortune * stake) / DICE_SIDES;
+        uint256 fortuneRewards = (getTotalFortuneFor(playerAddress, player) *
+            stake) / DICE_SIDES;
 
         if (isWin) {
             player.fortune += fortuneRewards;
@@ -686,7 +688,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         if (rollingDice.action == RollAction.Add) {
             finalizeAddRoll(diceRoll, player);
         } else if (rollingDice.action == RollAction.Multiply) {
-            finalizeMultiplyRoll(diceRoll, player, rollingDice.multiplyStake);
+            finalizeMultiplyRoll(
+                diceRoll,
+                player,
+                rollingDice.multiplyStake,
+                rollingDice.player
+            );
         } else if (rollingDice.action == RollAction.Grab) {
             finalizeGrabRoll(diceRoll, rollingDice);
         } else {
@@ -696,6 +703,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         delete rollingDie[requestId];
 
         outstandingRolls -= 1;
+        player.hasPendingRoll = false;
 
         emit DiceLanded(
             rollingDice.player,
