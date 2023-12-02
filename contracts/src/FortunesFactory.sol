@@ -11,7 +11,6 @@ contract FortunesFactory is Owned {
 
     address public vrfCoordinator;
     address payable public stakedAvax;
-    address public linkToken;
     bytes32 keyHash;
     uint64 subscriptionId;
 
@@ -23,13 +22,11 @@ contract FortunesFactory is Owned {
         address owner,
         address _vrfCoordinator,
         address payable _stakedAvax,
-        address _linkToken,
         bytes32 _keyHash,
         uint64 _subscriptionId
     ) Owned(owner) {
         vrfCoordinator = _vrfCoordinator;
         stakedAvax = _stakedAvax;
-        linkToken = _linkToken;
         keyHash = _keyHash;
         subscriptionId = _subscriptionId;
     }
@@ -56,7 +53,6 @@ contract FortunesFactory is Owned {
             address(this),
             vrfCoordinator,
             stakedAvax,
-            linkToken,
             gameStart,
             gameEnd,
             diceRollGenerationRate,
@@ -91,16 +87,6 @@ contract FortunesFactory is Owned {
             rewardGroups,
 						rollToRewardGroup
         );
-    }
-
-    function reclaimLinkTokens(uint256 gameIndex) external onlyOwner {
-        Fortunes(fortunes[gameIndex]).reclaimLinkTokens();
-
-        ERC20 linkTokenContract = ERC20(linkToken);
-
-        uint256 balance = linkTokenContract.balanceOf(address(this));
-
-        linkTokenContract.transfer(msg.sender, balance);
     }
 
     function claimProtocolRewards(uint256 gameIndex) external onlyOwner {

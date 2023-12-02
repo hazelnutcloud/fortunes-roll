@@ -18,7 +18,6 @@ contract FortunesTest is Test {
     Fortunes fortunes;
     address vrfCoordinator = makeAddr("vrfCoordinator");
     address sAvax = makeAddr("sAvax");
-    address link = makeAddr("link");
     bytes32 keyHash = bytes32(0);
     uint64 subscriptionId = 0;
     uint256 gameStart = block.timestamp + 10;
@@ -34,7 +33,6 @@ contract FortunesTest is Test {
             address(this),
             vrfCoordinator,
             payable(sAvax),
-            link,
             keyHash,
             subscriptionId
         );
@@ -937,14 +935,6 @@ contract FortunesTest is Test {
 			mockTransfer(sAvax, address(this), 100 * 1e18);
 			mockBalanceOf(sAvax, address(fortunesFactory), 100 * 1e18);
 			fortunesFactory.claimProtocolRewards(0);
-		}
-
-		function test_ReclaimLinkTokens() external {
-			mockBalanceOf(link, address(fortunes), 100 * 1e18);
-			mockTransfer(link, address(fortunesFactory), 100 * 1e18);
-			mockBalanceOf(link, address(fortunesFactory), 100 * 1e18);
-			mockTransfer(link, address(this), 100 * 1e18);
-			fortunesFactory.reclaimLinkTokens(0);
 		}
 
     /* -------------------------------------------------------------------------- */

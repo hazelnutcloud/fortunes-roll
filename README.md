@@ -16,7 +16,7 @@ The game's climax is as exciting as its progression: at the end, the generated y
 - [x] Fix bug where depositing more does not update the player's remaining dice rolls. This opens up an exploit where players can deposit more to incorrectly get more rolls.
 - [x] Fix bug where roll multiply does not take into account the users' fortune received from grabbings.
 - [x] Write tests
-- [ ] Add referral system
-- [ ] Write deployment scripts
+- [x] Write deployment scripts
 - [ ] Add frontend
+- [ ] Add referral system
 
