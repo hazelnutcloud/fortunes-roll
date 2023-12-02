@@ -41,16 +41,16 @@ contract FortunesFactory is Owned {
         uint256 generationRateDepositFactor,
         uint256 additionMultiplier,
         uint256 minimumFortuneToRollGrab,
-				uint256 baseDiceRolls
+        uint256 baseDiceRolls
     ) public onlyOwner returns (Fortunes) {
         require(
             gameStart > block.timestamp,
             "FortunesFactory: gameStart must be in the future"
         );
-				require(
-						gameEnd > gameStart,
-						"FortunesFactory: gameEnd must be after gameStart"
-				);
+        require(
+            gameEnd > gameStart,
+            "FortunesFactory: gameEnd must be after gameStart"
+        );
 
         fortunes[index] = new Fortunes(
             address(this),
@@ -63,7 +63,7 @@ contract FortunesFactory is Owned {
             generationRateDepositFactor,
             additionMultiplier,
             minimumFortuneToRollGrab,
-						baseDiceRolls,
+            baseDiceRolls,
             keyHash,
             subscriptionId
         );
@@ -74,20 +74,22 @@ contract FortunesFactory is Owned {
         return fortunes[index - 1];
     }
 
-    function setSeizure(
+    function setGrabbening(
         uint256 gameIndex,
-        uint256 seizureIndex,
+        uint256 grabbeningIndex,
         uint256 start,
         uint256 end,
         uint256 fee,
-        uint256[] memory rewardShares
+				uint256[] memory rewardGroups,
+        uint256[] memory rollToRewardGroup
     ) external onlyOwner {
         Fortunes(fortunes[gameIndex]).setGrabbening(
-            seizureIndex,
+            grabbeningIndex,
             start,
             end,
             fee,
-            rewardShares
+            rewardGroups,
+						rollToRewardGroup
         );
     }
 

@@ -155,10 +155,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 start;
         uint256 end;
         uint256 fee;
-        uint256[DICE_SIDES] rewardShares; // denominated in PRECISION e.g 50% = 0.5 * PRECISION. Total should never exceed 1 * PRECISION
-        uint256[DICE_SIDES] grabberTallies; // number of players who rolled each side
         uint256 rewardSharesTotal;
-        mapping(address => uint256) rolls;
         uint256 rewardsSnapshot;
     }
 
@@ -202,6 +199,11 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     uint256 public baseDiceRolls;
 
     mapping(uint256 => Grabbening) public grabbenings;
+    mapping(uint256 => uint256[]) public grabbeningRollToRewardGroup; // e.g: 1 - 4: 0, 5 - 8: 1, 9 - 12: 2
+    mapping(uint256 => uint256) public grabbeningRewardGroupsLength;
+    mapping(uint256 => uint256[]) public grabbeningRewardGroups; // e.g: 0: 0%, 1: 20%, 2: 40%. denominated in PRECISION e.g 50% = 0.5 * PRECISION. Total should never exceed 1 * PRECISION
+    mapping(uint256 => uint256[]) public grabbeningGrabberTallies; // number of players who rolled in each group
+    mapping(uint256 => mapping(address => uint256)) public grabbeningRolls;
     mapping(address => Player) public players;
     mapping(uint256 => RollingDice) public rollingDie;
 
@@ -450,9 +452,13 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         uint totalRewards = 0;
 
-        for (uint256 i = 0; i < DICE_SIDES; i++) {
+        for (
+            uint256 i = 0;
+            i < grabbeningRewardGroupsLength[grabbeningIndex];
+            i++
+        ) {
             totalRewards +=
-                (grabbening.rewardShares[i] * potBalance) /
+                (grabbeningRewardGroups[grabbeningIndex][i] * potBalance) /
                 PRECISION;
         }
 
@@ -470,33 +476,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         grabbeningIndex += 1;
     }
 
-    function calculateGrabbeningRewards(
-        address player
-    ) public view returns (uint256) {
-        uint256 grabbeningRewards = 0;
-
-        for (uint256 i = 0; i < grabbeningIndex; i++) {
-            Grabbening storage grabbening = grabbenings[i];
-
-            uint256 roll = grabbening.rolls[player];
-
-            if (roll == 0) {
-                continue;
-            }
-
-            uint256 rollRewardShare = grabbening.rewardShares[roll - 1];
-
-            uint256 rollReward = (rollRewardShare *
-                grabbening.rewardsSnapshot) / grabbening.rewardSharesTotal;
-
-            grabbeningRewards +=
-                rollReward /
-                grabbening.grabberTallies[roll - 1];
-        }
-
-        return grabbeningRewards;
-    }
-
     /* -------------------------------------------------------------------------- */
     /*                               Admin Functions                              */
     /* -------------------------------------------------------------------------- */
@@ -506,31 +485,34 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 start,
         uint256 end,
         uint256 fee,
-        uint256[] calldata rewardShares
+        uint256[] calldata rewardGroups,
+        uint256[] calldata rollToRewardGroup
     ) external onlyOwner {
         require(start >= gameStart && end <= gameEnd, "Must be during game");
         require(end > start, "Must have end time");
-        require(fee > 0, "Must have fee");
-        require(rewardShares.length == DICE_SIDES, "Must have rewards");
+        require(fee > 0 && fee <= PRECISION, "Invalid fee");
+        require(rollToRewardGroup.length == DICE_SIDES, "Must have rewards");
 
         Grabbening storage grabbening = grabbenings[index];
 
         require(grabbening.start == 0, "Grabbening already exists");
 
-        uint256[DICE_SIDES] memory rewardSharesCopy;
-
-        for (uint256 i = 0; i < DICE_SIDES; i++) {
-            rewardSharesCopy[i] = rewardShares[i];
-        }
-
         grabbening.start = start;
         grabbening.end = end;
         grabbening.fee = fee;
-        grabbening.rewardShares = rewardSharesCopy;
+        grabbeningRewardGroups[index] = rewardGroups;
+        grabbeningRollToRewardGroup[index] = rollToRewardGroup;
+        grabbeningRewardGroupsLength[index] = rewardGroups.length;
+        grabbeningGrabberTallies[index] = new uint256[](rewardGroups.length);
 
-        for (uint256 i = 0; i < DICE_SIDES; i++) {
-            grabbening.rewardSharesTotal += rewardShares[i];
+        for (uint256 i = 0; i < rewardGroups.length; i++) {
+            grabbening.rewardSharesTotal += rewardGroups[i];
         }
+
+        require(
+            grabbening.rewardSharesTotal <= PRECISION,
+            "Reward shares must not exceed 100%"
+        );
     }
 
     function reclaimLinkTokens() external onlyOwner {
@@ -554,6 +536,37 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         Player storage player
     ) internal view returns (uint256) {
         return player.fortune + calculateGrabbeningRewards(playerAddress);
+    }
+
+    function calculateGrabbeningRewards(
+        address player
+    ) internal view returns (uint256) {
+        uint256 grabbeningRewards = 0;
+
+        for (uint256 i = 0; i < grabbeningIndex; i++) {
+            Grabbening storage grabbening = grabbenings[i];
+
+            uint256 roll = grabbeningRolls[grabbeningIndex][player];
+
+            if (roll == 0) {
+                continue;
+            }
+
+            uint256 rollRewardShare = grabbeningRewardGroups[grabbeningIndex][
+                grabbeningRollToRewardGroup[grabbeningIndex][roll - 1]
+            ];
+
+            uint256 rollReward = (rollRewardShare *
+                grabbening.rewardsSnapshot) / grabbening.rewardSharesTotal;
+
+            grabbeningRewards +=
+                rollReward /
+                grabbeningGrabberTallies[grabbeningIndex][
+                    grabbeningRollToRewardGroup[grabbeningIndex][roll - 1]
+                ];
+        }
+
+        return grabbeningRewards;
     }
 
     function updateDiceRolls(Player storage player) internal returns (uint256) {
@@ -657,21 +670,25 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 diceRoll,
         RollingDice storage rollingDice
     ) internal {
-        uint256 prevRoll = grabbenings[rollingDice.grabbeningIndex].rolls[
+        uint256 prevRoll = grabbeningRolls[rollingDice.grabbeningIndex][
             rollingDice.player
         ];
 
         if (prevRoll > 0) {
-            grabbenings[rollingDice.grabbeningIndex].grabberTallies[
-                prevRoll - 1
+            grabbeningGrabberTallies[rollingDice.grabbeningIndex][
+                grabbeningRollToRewardGroup[rollingDice.grabbeningIndex][
+                    prevRoll - 1
+                ]
             ] -= 1;
         }
 
-        grabbenings[rollingDice.grabbeningIndex].grabberTallies[
-            diceRoll - 1
+        grabbeningGrabberTallies[rollingDice.grabbeningIndex][
+            grabbeningRollToRewardGroup[rollingDice.grabbeningIndex][
+                diceRoll - 1
+            ]
         ] += 1;
 
-        grabbenings[rollingDice.grabbeningIndex].rolls[
+        grabbeningRolls[rollingDice.grabbeningIndex][
             rollingDice.player
         ] = diceRoll;
     }

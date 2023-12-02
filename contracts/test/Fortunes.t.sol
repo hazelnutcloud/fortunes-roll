@@ -344,8 +344,10 @@ contract FortunesTest is Test {
             .checked_write(playerFortune);
 
         uint256 yield = (200 - 180) * 1e18;
-        uint256 expectedRedeemed = (((yield * playerFortune * (PRECISION - PROTOCOL_SHARE)) /
-            totalFortune) / PRECISION) + (initialDeposit); // (20 sAVAX * 80 fortune * protocolShare / 100 totalFortune / precision) + 100 sAVAX
+        uint256 expectedRedeemed = (((yield *
+            playerFortune *
+            (PRECISION - PROTOCOL_SHARE)) / totalFortune) / PRECISION) +
+            (initialDeposit); // (20 sAVAX * 80 fortune * protocolShare / 100 totalFortune / precision) + 100 sAVAX
 
         mockTransfer(sAvax, address(this), expectedRedeemed);
 
@@ -633,6 +635,295 @@ contract FortunesTest is Test {
 
         (player, , , ) = fortunes.rollingDie(requestId);
         assertEq(player, address(0));
+    }
+
+    function test_SetGrabbening() external {
+        vm.expectRevert("Must be during game");
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart - 1,
+            gameEnd + 1,
+            0,
+            new uint[](0),
+            new uint[](0)
+        );
+
+        vm.expectRevert("Must have end time");
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameStart - 1,
+            0,
+            new uint[](0),
+            new uint[](0)
+        );
+
+        vm.expectRevert("Invalid fee");
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameEnd,
+            0,
+            new uint[](0),
+            new uint[](0)
+        );
+        vm.expectRevert("Invalid fee");
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameEnd,
+            PRECISION + 1,
+            new uint[](0),
+            new uint[](0)
+        );
+
+        vm.expectRevert("Must have rewards");
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameEnd,
+            1,
+            new uint[](0),
+            new uint[](0)
+        );
+
+        stdstore
+            .target(address(fortunes))
+            .sig("grabbenings(uint256)")
+            .with_key(uint256(0))
+            .checked_write(gameStart);
+        vm.expectRevert("Grabbening already exists");
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameEnd,
+            1,
+            new uint[](0),
+            new uint[](12)
+        );
+
+        uint256[] memory rollToRewardGroup = new uint[](12);
+        uint256[] memory rewardGroups = new uint[](3);
+
+        for (uint256 i = 0; i < 12; i++) {
+            rollToRewardGroup[i] = 0;
+        }
+        rewardGroups[0] = PRECISION + 1;
+
+        vm.expectRevert("Reward shares must not exceed 100%");
+        fortunesFactory.setGrabbening(
+            0,
+            1,
+            gameStart,
+            gameEnd,
+            (PRECISION * 5) / 100,
+            rewardGroups,
+            rollToRewardGroup
+        );
+
+        rewardGroups[0] = PRECISION / 2;
+        fortunesFactory.setGrabbening(
+            0,
+            1,
+            gameStart,
+            gameEnd,
+            (PRECISION * 5) / 100,
+            rewardGroups,
+            rollToRewardGroup
+        );
+
+        (
+            uint256 start,
+            uint256 end,
+            uint256 fee,
+            uint256 rewardSharesTotal,
+            uint256 rewardsSnapshot
+        ) = fortunes.grabbenings(1);
+
+        assertEq(start, gameStart);
+        assertEq(end, gameEnd);
+        assertEq(fee, (PRECISION * 5) / 100);
+        assertEq(rewardSharesTotal, PRECISION / 2);
+        assertEq(rewardsSnapshot, 0);
+    }
+
+    function test_CloseCurrentGrabbening() external {
+        vm.expectRevert("Must have started grabbening");
+        fortunes.closeCurrentGrabbening();
+
+        uint256[] memory rollToRewardGroups = new uint[](12);
+        uint256[] memory rewardGroups = new uint[](3);
+
+        uint256 expectedRewardSharesTotal = PRECISION / 2;
+
+        for (uint256 i = 0; i < 12; i++) {
+            if (i < 4) {
+                rollToRewardGroups[i] = 0;
+            } else if (i < 8) {
+                rollToRewardGroups[i] = 1;
+            } else {
+                rollToRewardGroups[i] = 2;
+            }
+        }
+        rewardGroups[0] = 0;
+        rewardGroups[1] = 200_000;
+        rewardGroups[2] = 300_000;
+
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameStart + 10,
+            (PRECISION * 5) / 100,
+            rewardGroups,
+            rollToRewardGroups
+        );
+
+        vm.warp(gameStart + 1);
+        vm.expectRevert("Must be after grabbening end");
+        fortunes.closeCurrentGrabbening();
+
+        uint256 potBalance = 10_000 * 1e6;
+        stdstore.target(address(fortunes)).sig("potBalance()").checked_write(
+            potBalance
+        );
+
+        vm.warp(gameStart + 11);
+        fortunes.closeCurrentGrabbening();
+
+        uint256 expectedRewardSnapshot = potBalance / 2;
+
+        (
+            uint256 start,
+            uint256 end,
+            uint256 fee,
+            uint256 rewardSharesTotal,
+            uint256 rewardsSnapshot
+        ) = fortunes.grabbenings(0);
+
+        assertEq(start, gameStart);
+        assertEq(end, gameStart + 10);
+        assertEq(fee, (PRECISION * 5) / 100);
+        assertEq(rewardSharesTotal, expectedRewardSharesTotal);
+        assertEq(rewardsSnapshot, expectedRewardSnapshot);
+        assertEq(fortunes.potBalance(), potBalance - expectedRewardSnapshot);
+        assertEq(fortunes.grabbeningIndex(), 1);
+    }
+
+    function test_RollGrab(uint256 randomNumber) external {
+        uint256[] memory rollToRewardGroups = new uint[](12);
+        uint256[] memory rewardGroups = new uint[](3);
+
+        for (uint256 i = 0; i < 12; i++) {
+            if (i < 4) {
+                rollToRewardGroups[i] = 0;
+            } else if (i < 8) {
+                rollToRewardGroups[i] = 1;
+            } else {
+                rollToRewardGroups[i] = 2;
+            }
+        }
+        rewardGroups[0] = 0;
+        rewardGroups[1] = 200_000;
+        rewardGroups[2] = 300_000;
+
+        fortunesFactory.setGrabbening(
+            0,
+            0,
+            gameStart,
+            gameStart + 10,
+            (PRECISION * 5) / 100,
+            rewardGroups,
+            rollToRewardGroups
+        );
+
+        vm.warp(gameStart);
+        stdstore
+            .target(address(fortunes))
+            .sig("players(address)")
+            .with_key(address(this))
+            .checked_write(minimumFortuneToRollGrab);
+        stdstore
+            .target(address(fortunes))
+            .sig("players(address)")
+            .with_key(address(this))
+            .depth(1)
+            .checked_write(110 * 1e18);
+        stdstore.target(address(fortunes)).sig("totalFortune()").checked_write(
+            minimumFortuneToRollGrab
+        );
+        mockVrfCoordinatorRequestRandomWords(0);
+
+        uint256 requestId = fortunes.rollGrab();
+
+        (
+            uint256 fortune,
+            ,
+            uint256 diceRollsRemaining,
+            uint256 lastDiceRollTimestamp,
+            bool hasPendingRoll
+        ) = fortunes.players(address(this));
+
+        assertEq(diceRollsRemaining, baseDiceRolls - (1 * PRECISION));
+        assertEq(lastDiceRollTimestamp, gameStart);
+        assertEq(requestId, 0);
+        assertEq(fortune, (minimumFortuneToRollGrab * 95) / 100);
+        assert(hasPendingRoll);
+        assertEq(fortunes.outstandingRolls(), 1);
+        assertEq(
+            fortunes.totalFortune(),
+            (minimumFortuneToRollGrab * 95) / 100
+        );
+        assertEq(fortunes.potBalance(), (minimumFortuneToRollGrab * 5) / 100);
+
+        (
+            address player,
+            uint256 multiplyStake,
+            uint256 grabbeningIndex,
+            Fortunes.RollAction action
+        ) = fortunes.rollingDie(requestId);
+
+        assertEq(player, address(this));
+        assertEq(multiplyStake, 0);
+        assertEq(grabbeningIndex, 0);
+        assertEq(uint8(action), uint8(Fortunes.RollAction.Grab));
+
+        vm.roll(block.number + 1); // simulate VRFCoordinator callback at next block. Not really necessary, but makes the test more realistic
+        vm.prank(vrfCoordinator);
+        uint256[] memory randomWords = new uint256[](1);
+        randomWords[0] = randomNumber;
+        fortunes.rawFulfillRandomWords(requestId, randomWords);
+
+        (fortune, , , , hasPendingRoll) = fortunes.players(address(this));
+
+        assertEq(fortune, (minimumFortuneToRollGrab * 95) / 100);
+        assertEq(fortunes.outstandingRolls(), 0);
+        assertEq(
+            fortunes.totalFortune(),
+            (minimumFortuneToRollGrab * 95) / 100
+        );
+        assert(!hasPendingRoll);
+
+        (player, , , ) = fortunes.rollingDie(requestId);
+        assertEq(player, address(0));
+
+        uint256 grabbeningPlayerRoll = fortunes.grabbeningRolls(
+            0,
+            address(this)
+        );
+        uint256 grabberTallies = fortunes.grabbeningGrabberTallies(
+            0,
+            rollToRewardGroups[randomNumber % 12]
+        );
+
+        assertEq(grabbeningPlayerRoll, (randomNumber % 12) + 1);
+        assertEq(grabberTallies, 1);
     }
 
     /* -------------------------------------------------------------------------- */
