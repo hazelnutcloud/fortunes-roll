@@ -365,7 +365,7 @@ contract FortunesTest is Test {
         assertEq(diceRollsRemaining, 0);
         assertEq(lastDiceRollTimestamp, 0);
         assertEq(fortunes.totalDeposited(), 110 * 1e18);
-				assertEq(fortunes.totalProtocolRewards(), yield * 5 * 8 / 10 / 100);
+        assertEq(fortunes.totalProtocolRewards(), (yield * 5 * 8) / 10 / 100);
     }
 
     /* -------------------------------------------------------------------------- */
@@ -925,17 +925,17 @@ contract FortunesTest is Test {
         assertEq(grabberTallies, 1);
     }
 
-		function test_ClaimProtocolRewards() external {
-			stdstore
-					.target(address(fortunes))
-					.sig("totalProtocolRewards()")
-					.checked_write(100 * 1e18);
-			
-			mockTransfer(sAvax, address(fortunesFactory), 100 * 1e18);
-			mockTransfer(sAvax, address(this), 100 * 1e18);
-			mockBalanceOf(sAvax, address(fortunesFactory), 100 * 1e18);
-			fortunesFactory.claimProtocolRewards(0);
-		}
+    function test_ClaimProtocolRewards() external {
+        stdstore
+            .target(address(fortunes))
+            .sig("totalProtocolRewards()")
+            .checked_write(100 * 1e18);
+
+        mockTransfer(sAvax, address(fortunesFactory), 100 * 1e18);
+        mockTransfer(sAvax, address(this), 100 * 1e18);
+        mockBalanceOf(sAvax, address(fortunesFactory), 100 * 1e18);
+        fortunesFactory.claimProtocolRewards(0);
+    }
 
     /* -------------------------------------------------------------------------- */
     /*                                    Mocks                                   */
