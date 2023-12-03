@@ -503,7 +503,11 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         }
 
         if (player.lastDiceRollTimestamp == 0) {
-            player.lastDiceRollTimestamp = gameStart;
+            if (block.timestamp > gameStart) {
+                player.lastDiceRollTimestamp = block.timestamp;
+            } else {
+                player.lastDiceRollTimestamp = gameStart;
+            }
             player.diceRollsRemaining = baseDiceRolls;
         }
 
