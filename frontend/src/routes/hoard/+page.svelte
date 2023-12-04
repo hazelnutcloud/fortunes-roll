@@ -61,7 +61,7 @@
 			</div>
 			<div class="stat-value text-primary">102,286,934.19 FORTUNE</div>
 			<div class="stat-desc">
-				that's <span class="text-accent">21%</span> of the total fortune supply.
+				fortune from lost bets go here, that's <span class="text-accent">21%</span> of the total fortune supply.
 			</div>
 		</div>
 	</div>

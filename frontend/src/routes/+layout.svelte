@@ -10,10 +10,7 @@
 		<a href="/" class="btn btn-ghost text-xl"><Dices /> Fortune's Roll</a>
 	</div>
 	<div class="navbar-center">
-		<ul class="menu menu-horizontal">
-			<li>
-				<a href="/profile" class="tooltip tooltip-bottom" data-tip="profile"><User /></a>
-			</li>
+		<ul class="menu menu-horizontal z-50">
 			<li>
 				<a href="/" class="tooltip tooltip-bottom" data-tip="roll"><Clover /></a>
 			</li>
@@ -51,7 +48,7 @@
 	</div>
 </div>
 <div class="flex h-[calc(100vh-72px)]">
-	<div class="flex-1 h-full bg-dice bg-[url('/bg.svg')] bg-[length:480px]">
+	<div class="flex-1 h-full bg-dice bg-[url('/bg.svg')] bg-[length:480px] max-h-[calc(100vh-72px)] overflow-y-auto">
 		<slot />
 	</div>
 	<ChatBox />
