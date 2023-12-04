@@ -52,7 +52,8 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 		rotate: {
 			x: (TAU / 14) * -1,
 			y: TAU / 8
-		}
+		},
+		dragRotate: true
 	});
 
 	const dice = new Box({
@@ -242,8 +243,6 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 				angles.y = illustration.rotate.y;
 				angles.z = illustration.rotate.z;
 
-				illustration.updateRenderGraph();
-
 				ticker++;
 			} else {
 				illustration.rotate.y += (TAU * delta) / 100;
@@ -253,8 +252,6 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 				angles.x = illustration.rotate.x;
 				angles.y = illustration.rotate.y;
 				angles.z = illustration.rotate.z;
-
-				illustration.updateRenderGraph();
 			}
 		} else if (value !== null) {
 			if (ticker < cycle) {
@@ -263,8 +260,6 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 				illustration.rotate.x = angles.x + (((anglesNext.x - angles.x) % TAU) + TAU) * ease;
 				illustration.rotate.y = angles.y + (((anglesNext.y - angles.y) % TAU) + TAU) * ease;
 				illustration.rotate.z = angles.z + (((anglesNext.z - angles.z) % TAU) + TAU) * ease;
-
-				illustration.updateRenderGraph();
 
 				ticker++;
 			} else {
@@ -276,14 +271,13 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 				illustration.rotate.y = angles.y;
 				illustration.rotate.z = angles.z;
 
-				illustration.updateRenderGraph();
-
 				ticker = 0;
 
 				value = null;
 			}
 		}
 
+		illustration.updateRenderGraph();
 		frame = requestAnimationFrame(animate);
 	};
 
@@ -292,7 +286,12 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 	return {
 		update(value: number) {
 			if (value) {
-				anglesNext = faceAngles[value - 1];
+				const rawAnglesNext = faceAngles[value - 1];
+				anglesNext = {
+					x: rawAnglesNext.x + (Math.random() * TAU) / 30,
+					y: rawAnglesNext.y + (Math.random() * TAU) / 30,
+					z: rawAnglesNext.z + (Math.random() * TAU) / 30
+				};
 			}
 			setValue(value);
 		},
