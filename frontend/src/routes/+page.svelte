@@ -1,18 +1,35 @@
 <script lang="ts">
 	import { dice } from '$lib/dice';
-	import { PiggyBank, Coins, Info, Dices } from 'lucide-svelte';
+	import { PiggyBank, Coins, Info, Dices, Plus, X, Grab } from 'lucide-svelte';
+	import { page } from '$app/stores';
+
+	const distributionColors = ['#118ab2', '#06d6a0', '#ffd166', '#ef476f'];
 
 	let dice1: number | null = null;
 	let dice2: number | null = null;
 	let rollsRemaining = 10;
-	let selectedRollType: string;
+	let selectedRollType: string | undefined = $page.url.searchParams.get('roll-action') ?? undefined;
 	let multiplyStake = 6;
 	let timeOut: NodeJS.Timeout;
 	let dialog: HTMLDialogElement;
+	let seizeEnabled = true;
+	let seizeRewardGroups = [
+		{ percentage: 30, from: 6, to: 9 },
+		{ percentage: 20, from: 10, to: 11 },
+		{ percentage: 10, from: 12, to: 12 }
+	];
 
 	$: stakePercentage = getStakePercentage(multiplyStake);
 	$: hasRolls = rollsRemaining > 0;
 	$: canRoll = hasRolls && !!selectedRollType;
+	$: infoTip =
+		selectedRollType === 'multiply'
+			? `you are betting ${stakePercentage} of your fortune. if you roll at or above ${multiplyStake}, you will win the amount you betted, otherwise you will lose it.`
+			: selectedRollType === 'add'
+			  ? 'you will win 100 fortune for each point you roll. i.e. if you roll 6, you will win 600 fortune.'
+			  : selectedRollType === 'seizing'
+			    ? 'you will pay 10% of your fortune for a chance to win a portion of the hoard according to your roll.'
+			    : 'select a roll action.';
 
 	const openDeposit = () => {
 		dialog.showModal();
@@ -33,8 +50,8 @@
 	};
 </script>
 
-<div class="flex-1 h-full grid place-items-center">
-	<div class="flex flex-col container items-center gap-4">
+<div class="h-full grid place-items-center">
+	<div class="flex flex-col items-center gap-4">
 		<!-- stats -->
 		<div class="stats shadow">
 			<div class="stat bg-base-200">
@@ -79,16 +96,20 @@
 		</div>
 
 		<!-- roll -->
-		<div class="flex gap-4 w-full">
+		<div class="flex items-center gap-4 w-full">
 			<div class="flex-1"></div>
+			<span class="tooltip tooltip-left" data-tip={infoTip}>
+				<Info />
+			</span>
 			<select
 				class="select select-bordered shadow"
 				bind:value={selectedRollType}
 				disabled={!hasRolls}
 			>
 				<option disabled selected value="">Roll for...</option>
-				<option value="add">Add</option>
-				<option value="multiply">Multiply</option>
+				<option value="add"><Plus />Add</option>
+				<option value="multiply"><X />Multiply</option>
+				<option value="seizing" disabled={!seizeEnabled}><Grab />Seizing</option>
 			</select>
 			<button
 				class="btn btn-secondary shadow ring-secondary ring-offset-base-100 ring-offset-2 tooltip tooltip-right"
@@ -115,31 +136,46 @@
 
 		<!-- slider -->
 		<div
-			class="flex gap-2 opacity-0 transition-opacity duration-30 w-full"
+			class="flex flex-col gap-2 opacity-0 transition-opacity duration-30 w-full"
 			class:opacity-100={selectedRollType === 'multiply'}
 		>
-			<div class="flex-1">
-				<input
-					type="range"
-					min="1"
-					max="12"
-					bind:value={multiplyStake}
-					class="range range-secondary w-full"
-					step="1"
-					disabled={selectedRollType !== 'multiply'}
-				/>
-				<div class="w-full flex justify-between text-xs px-2">
-					{#each Array(12) as _, i}
-						<span class="tooltip" data-tip={getStakePercentage(i + 1)}>{i + 1}</span>
-					{/each}
-				</div>
+			<input
+				type="range"
+				min="1"
+				max="12"
+				bind:value={multiplyStake}
+				class="range range-secondary w-full"
+				step="1"
+				disabled={selectedRollType !== 'multiply'}
+			/>
+			<div class="w-full flex justify-between text-xs px-2">
+				{#each Array(12) as _, i}
+					<span class="tooltip font-mono" data-tip={getStakePercentage(i + 1)}>{i + 1}</span>
+				{/each}
 			</div>
-			<span
-				class="tooltip"
-				data-tip={`you are betting ${stakePercentage} of your fortune. if you roll at or above ${multiplyStake}, you will win the amount you betted, otherwise you will lose it.`}
-			>
-				<Info />
-			</span>
+		</div>
+
+		<!-- seizing info -->
+		<div
+			class="flex flex-col gap-2 opacity-0 transition-opacity duration-30 w-full relative -top-16"
+			class:opacity-100={selectedRollType === 'seizing'}
+		>
+			<div class="w-full flex h-6">
+				{#each seizeRewardGroups as group, i}
+					<div
+						class={'h-full tooltip'}
+						class:rounded-l={i === 0}
+						class:rounded-r={i === seizeRewardGroups.length - 1}
+						style={`flex: ${group.percentage}; background-color: ${
+							distributionColors[i % distributionColors.length]
+						}`}
+						data-tip={`roll ${
+							group.from === group.to ? group.from : `${group.from} - ${group.to}`
+						} (shares ${group.percentage}% of hoard)`}
+					></div>
+				{/each}
+			</div>
+			<div class="text-center w-full text-sm">roll → rewards distribution</div>
 		</div>
 	</div>
 </div>

@@ -297,6 +297,7 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 		},
 		destroy() {
 			frame && cancelAnimationFrame(frame);
+			illustration.remove();
 		}
 	};
 }
