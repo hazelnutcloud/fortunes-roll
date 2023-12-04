@@ -1,4 +1,4 @@
-import { Illustration, TAU, Hemisphere, Box, Group } from 'zdog';
+import { Illustration, TAU, Hemisphere, Box, Group, easeInOut } from 'zdog';
 
 export function dice(canvas: HTMLCanvasElement, value: number | null) {
 	const colors = {
@@ -11,6 +11,40 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 	const size = 50;
 	const diameter = 13;
 	const offset = 16;
+
+	const faceAngles = [
+		{
+			x: (TAU / 4) * -1,
+			y: 0,
+			z: 0
+		},
+
+		{
+			x: TAU / 2,
+			y: 0,
+			z: 0
+		},
+		{
+			x: 0,
+			y: (TAU / 4) * -1,
+			z: 0
+		},
+		{
+			x: 0,
+			y: TAU / 4,
+			z: 0
+		},
+		{
+			x: 0,
+			y: 0,
+			z: 0
+		},
+		{
+			x: TAU / 4,
+			y: 0,
+			z: 0
+		}
+	];
 
 	const illustration = new Illustration({
 		element: canvas,
@@ -175,41 +209,95 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 
 	illustration.updateRenderGraph();
 
-	// let frame = null;
-	// let ticker = 0;
-	// const cycle = 125;
+	let frame: number | null = null;
+	let ticker = 0;
+	const cycle = 200;
 
-	// let angles = {
-	// 	x: illustration.rotate.x,
-	// 	y: illustration.rotate.y,
-	// 	z: illustration.rotate.z
-	// };
+	const angles = {
+		x: illustration.rotate.x,
+		y: illustration.rotate.y,
+		z: illustration.rotate.z
+	};
 
-	// let anglesNext = { ...angles };
+	let anglesNext = { ...angles };
 
-	// const setValue = (newValue: number | null) => {
-	// 	value = newValue;
-	// };
+	const setValue = (newValue: number | null) => {
+		value = newValue;
+	};
 
-	// const animate = () => {
-	// 	if (value === null) {
-	// 		return;
-	// 	} else if (value === 0) { // waiting for roll to land
-	// 		if (ticker < cycle / 2) {
-	// 			const ease = easeInOut((ticker / cycle) % 1, 3) * 2;
-	// 			ticker++;
-	// 		} else {
-	// 		}
-	// 		frame = requestAnimationFrame(animate);
-	// 	} else {
-	// 	}
-	// };
+	const animate = (lastTimestamp: number) => {
+		const now = performance.now();
+		const delta = now - lastTimestamp;
 
-	value;
+		if (value === 0) {
+			// waiting for roll to land
+			if (ticker < cycle / 2) {
+				const ease = easeInOut((ticker / cycle) % 1, 2);
+
+				illustration.rotate.y += (ease * TAU * delta) / 100;
+				illustration.rotate.x += (ease * TAU * delta) / 200;
+				illustration.rotate.z += (ease * TAU * delta) / 400;
+
+				angles.x = illustration.rotate.x;
+				angles.y = illustration.rotate.y;
+				angles.z = illustration.rotate.z;
+
+				illustration.updateRenderGraph();
+
+				ticker++;
+			} else {
+				illustration.rotate.y += (TAU * delta) / 100;
+				illustration.rotate.x += (TAU * delta) / 200;
+				illustration.rotate.z += (TAU * delta) / 400;
+
+				angles.x = illustration.rotate.x;
+				angles.y = illustration.rotate.y;
+				angles.z = illustration.rotate.z;
+
+				illustration.updateRenderGraph();
+			}
+		} else if (value !== null) {
+			if (ticker < cycle) {
+				const ease = (easeInOut((ticker / cycle) % 1, 2) - 0.5) * 2;
+
+				illustration.rotate.x = angles.x + (((anglesNext.x - angles.x) % TAU) + TAU) * ease;
+				illustration.rotate.y = angles.y + (((anglesNext.y - angles.y) % TAU) + TAU) * ease;
+				illustration.rotate.z = angles.z + (((anglesNext.z - angles.z) % TAU) + TAU) * ease;
+
+				illustration.updateRenderGraph();
+
+				ticker++;
+			} else {
+				angles.x = anglesNext.x;
+				angles.y = anglesNext.y;
+				angles.z = anglesNext.z;
+
+				illustration.rotate.x = angles.x;
+				illustration.rotate.y = angles.y;
+				illustration.rotate.z = angles.z;
+
+				illustration.updateRenderGraph();
+
+				ticker = 0;
+
+				value = null;
+			}
+		}
+
+		frame = requestAnimationFrame(animate);
+	};
+
+	animate(performance.now());
+
 	return {
-		// update(value: number) {
-		// 	setValue(value);
-		// 	animate();
-		// }
+		update(value: number) {
+			if (value) {
+				anglesNext = faceAngles[value - 1];
+			}
+			setValue(value);
+		},
+		destroy() {
+			frame && cancelAnimationFrame(frame);
+		}
 	};
 }

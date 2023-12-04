@@ -10,9 +10,9 @@
 		dice1 = 0;
 		dice2 = 0;
 		timeOut = setTimeout(() => {
-			dice1 = Math.floor(Math.random() * 6);
-			dice2 = Math.floor(Math.random() * 6);
-		}, 2000)
+			dice1 = Math.ceil(Math.random() * 6);
+			dice2 = Math.ceil(Math.random() * 6);
+		}, 5000)
 	}
 </script>
 
@@ -20,4 +20,4 @@
 	<canvas width="250" height="400" use:dice={dice1}></canvas>
 	<canvas width="250" height="400" use:dice={dice2}></canvas>
 </div>
-<button class="btn btn-primary" on:click={roll}>ROLL</button>
+<button class="btn btn-primary btn-lg btn-wide" on:click={roll}>ROLL</button>
