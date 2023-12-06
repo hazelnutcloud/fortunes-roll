@@ -2,7 +2,7 @@
 	import { Wallet2 } from 'lucide-svelte';
 	import { avalanche } from '@wagmi/core/chains';
 	import { EIP6963Connector, createWeb3Modal, walletConnectProvider } from '@web3modal/wagmi';
-	import { watchAccount, configureChains, createConfig, InjectedConnector } from '@wagmi/core';
+	import { watchAccount, configureChains, createConfig, InjectedConnector, watchContractEvent, erc20ABI } from '@wagmi/core';
 	import { publicProvider } from '@wagmi/core/providers/public';
 	import { infuraProvider } from '@wagmi/core/providers/infura';
 	import { WalletConnectConnector } from '@wagmi/core/connectors/walletConnect';
@@ -10,18 +10,25 @@
 	import { truncateAddress } from '$lib/utils/address';
 	import { getEnsName } from '$lib/queries/ens';
 	import { account as accountStore } from '$lib/stores/account';
+	import { createPublicClient, webSocket } from 'viem';
+	import { onMount } from 'svelte';
 
 	const projectId = '4c7843126d3374c92257f0198acf884c';
 
 	const { chains, publicClient } = configureChains(
 		[avalanche],
 		[
-			walletConnectProvider({ projectId }),
 			infuraProvider({ apiKey: '4883ecdf99f84bd3a4351502ea662fe2' }),
-			publicProvider()
+			publicProvider(),
+			walletConnectProvider({ projectId })
 		],
-		{ batch: { multicall: true } }
+		{ batch: { multicall: true }, pollingInterval: 2000 }
 	);
+	const webSocketPublicClient = createPublicClient({
+		chain: avalanche,
+		transport: webSocket('wss://avalanche-c-chain.publicnode.com'),
+		batch: { multicall: true }
+	});
 
 	const metadata = {
 		name: "Fortune's Roll",
@@ -38,7 +45,8 @@
 			new InjectedConnector({ chains, options: { shimDisconnect: true } }),
 			new CoinbaseWalletConnector({ chains, options: { appName: metadata.name } })
 		],
-		publicClient
+		publicClient,
+		webSocketPublicClient
 	});
 
 	const modal = createWeb3Modal({ wagmiConfig, projectId, chains, defaultChain: avalanche });
@@ -50,6 +58,9 @@
 		if (account.address) {
 			ensName = getEnsName(account.address);
 			accountAddress = truncateAddress(account.address);
+		} else {
+			ensName = undefined;
+			accountAddress = undefined;
 		}
 		accountStore.set(account);
 	});

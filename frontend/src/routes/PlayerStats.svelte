@@ -10,7 +10,7 @@
 		DICE_PER_SECOND,
 		PRECISION_PLACES
 	} from '$lib/constants/param';
-	import { getTotalDeposited, getTotalFortune } from '$lib/queries/totals';
+	import { getTotalDeposited, getTotalFortune } from '$lib/queries/game';
 	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
 
 	const locale = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
@@ -89,7 +89,7 @@
 		const depositRatio = (playerDeposit * precision) / totalDeposited;
 		const fortuneRatio = (playerFortune * precision) / totalFortune;
 
-		const sign = fortuneRatio > depositRatio ? '+' : '';
+		const sign = fortuneRatio >= depositRatio ? '+' : '';
 
 		const yieldChange = ((fortuneRatio - depositRatio) * precision) / depositRatio;
 

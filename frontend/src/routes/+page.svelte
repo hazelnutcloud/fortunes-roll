@@ -3,47 +3,135 @@
 	import { Info, Dices, Plus, X, Grab } from 'lucide-svelte';
 	import { page } from '$app/stores';
 	import PlayerStats from './PlayerStats.svelte';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
+	import { account } from '$lib/stores/account';
+	import { getPlayer } from '$lib/queries/player';
+	import {
+		BASE_DICE_ROLLS,
+		DEPOSIT_FACTOR,
+		DICE_PER_SECOND,
+		PRECISION
+	} from '$lib/constants/param';
+	import { getGameStart } from '$lib/queries/game';
+	import { formatUnits } from 'viem';
+	import { watchDiceLand } from '$lib/subscriptions/roll';
+	import { prepareRoll, rollFor } from '$lib/mutations/roll';
 
 	const distributionColors = ['#118ab2', '#06d6a0', '#ffd166', '#ef476f'];
+	const ONE = PRECISION;
+	const client = useQueryClient();
+	const gameStart = createQuery({
+		queryKey: ['game-start'],
+		queryFn: getGameStart
+	});
 
 	let dice1: number | null = null;
 	let dice2: number | null = null;
-	let rollsRemaining = 0;
-	let selectedRollType: string | undefined = $page.url.searchParams.get('roll-action') ?? undefined;
+	let selectedRollType: 'add' | 'multiply' | 'grab' | undefined =
+		($page.url.searchParams.get('roll-action') as any) ?? undefined;
 	let multiplyStake = 6;
+	let unwatchDiceLand: () => void;
 	let timeOut: NodeJS.Timeout;
+
 	let seizeEnabled = true;
 	let seizeRewardGroups = [
 		{ percentage: 30, from: 6, to: 9 },
 		{ percentage: 20, from: 10, to: 11 },
 		{ percentage: 10, from: 12, to: 12 }
 	];
+	let seizeFee = 5;
 
-	$: stakePercentage = getStakePercentage(multiplyStake);
-	$: hasRolls = rollsRemaining > 0;
-	$: canRoll = hasRolls && !!selectedRollType;
+	$: playerInfo = createQuery({
+		queryKey: ['player-info', $account?.address],
+		queryFn: async () => {
+			if (!$account?.address) return null;
+			return await getPlayer($account.address);
+		}
+	});
 	$: infoTip =
 		selectedRollType === 'multiply'
-			? `you are betting ${stakePercentage} of your fortune. if you roll at or above ${multiplyStake}, you will win the amount you betted, otherwise you will lose it.`
+			? `you are betting ${getStakePercentage(
+					multiplyStake
+			  )} of your fortune. if you roll at or above ${multiplyStake}, you will win the amount you betted, otherwise you will lose it.`
 			: selectedRollType === 'add'
 			  ? 'you will win 100 fortune for each point you roll. i.e. if you roll 6, you will win 600 fortune.'
-			  : selectedRollType === 'seizing'
-			    ? 'you will pay 5% of your fortune for a chance to win a portion of the hoard according to your roll.'
+			  : selectedRollType === 'grab'
+			    ? `you will pay ${seizeFee} of your fortune for a chance to win a portion of the hoard according to your roll.`
 			    : 'select a roll action.';
+	$: rollsRemaining = calculateRollsRemaining({
+		gameStart: $gameStart.data ?? 0n,
+		playerDeposit: $playerInfo.data?.[1] ?? 0n,
+		lastRollTimestamp: $playerInfo.data?.[3] ?? 0n,
+		rollsRemaining: $playerInfo.data?.[2] ?? 0n
+	});
+	$: canRoll = rollsRemaining >= ONE;
+	$: if ($playerInfo.data?.[4]) {
+		dice1 = -1;
+		dice2 = -1;
+		unwatchDiceLand = playerWatchDiceLand();
+	}
 
 	const getStakePercentage = (roll: number) => {
 		return `${((roll * 100) / 12).toFixed(0)}%`;
 	};
 
-	const roll = () => {
-		clearTimeout(timeOut);
-		dice1 = -1;
-		dice2 = -1;
-		timeOut = setTimeout(() => {
-			dice1 = Math.ceil(Math.random() * 6);
-			dice2 = Math.ceil(Math.random() * 6);
-		}, 5000);
+	const calculateRollsRemaining = ({
+		playerDeposit,
+		rollsRemaining,
+		lastRollTimestamp,
+		gameStart
+	}: {
+		playerDeposit: bigint;
+		rollsRemaining: bigint;
+		lastRollTimestamp: bigint;
+		gameStart: bigint;
+	}) => {
+		if (playerDeposit === 0n) return 0n;
+		const now = BigInt(Math.floor(Date.now() / 1000));
+		const isFirstRoll = lastRollTimestamp === 0n;
+		const start = isFirstRoll ? gameStart : lastRollTimestamp;
+		const baseDice = isFirstRoll ? BASE_DICE_ROLLS : 0n;
+		const newRolls = ((now - start) * DICE_PER_SECOND * playerDeposit) / DEPOSIT_FACTOR;
+		return rollsRemaining + newRolls + baseDice;
 	};
+
+	const roll = async () => {
+		if (!selectedRollType) return;
+		try {
+			const config = await prepareRoll({
+				type: selectedRollType,
+				multiplyStake: BigInt(multiplyStake)
+			});
+			dice1 = -1;
+			dice2 = -1;
+			await rollFor(config);
+			unwatchDiceLand = playerWatchDiceLand();
+		} catch (e) {
+			console.error(e);
+			dice1 = null;
+			dice2 = null;
+		}
+	};
+
+	const playerWatchDiceLand = () =>
+		watchDiceLand((diceLands) => {
+			console.log(diceLands, $account?.address);
+			const playersDice = diceLands.find(
+				({ args: { player } }) => player && player.toLowerCase() === $account?.address?.toLowerCase()
+			);
+			if (playersDice && playersDice.args.diceRoll) {
+				const point = Number(playersDice.args.diceRoll);
+				if (point === 1) {
+					dice1 = 1;
+					dice2 = 0;
+				} else {
+					dice1 = Math.floor(Math.random() * point - 1) + 1;
+					dice2 = point - dice1;
+				}
+				client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
+				unwatchDiceLand?.();
+			}
+		});
 </script>
 
 <div class="h-full grid place-items-center">
@@ -65,25 +153,25 @@
 			<select
 				class="select select-bordered shadow"
 				bind:value={selectedRollType}
-				disabled={!hasRolls}
+				disabled={!canRoll}
 			>
 				<option disabled selected value="">Roll for...</option>
 				<option value="add"><Plus />Add</option>
 				<option value="multiply"><X />Multiply</option>
-				<option value="seizing" disabled={!seizeEnabled}><Grab />Seizing</option>
+				<option value="grab" disabled={!seizeEnabled}><Grab />Seizing</option>
 			</select>
 			<button
 				class="btn btn-secondary shadow ring-secondary ring-offset-base-100 ring-offset-2 tooltip tooltip-right"
 				class:btn-disabled={!canRoll}
 				class:ring={canRoll}
-				data-tip={`${rollsRemaining} rolls remaining.`}
+				data-tip={`${Math.floor(parseFloat(formatUnits(rollsRemaining, 6)))} rolls remaining.`}
 				disabled={!canRoll}
 				on:click={roll}><Dices /></button
 			>
 		</div>
 
 		<!-- countdown -->
-		{#if rollsRemaining === 0}
+		{#if rollsRemaining < ONE && ($playerInfo.data?.[1] ?? 0n) > 0n}
 			<div class="flex w-full items-center gap-2">
 				<div class="flex-1"></div>
 				<span class="text-sm">next roll: </span>
@@ -116,7 +204,7 @@
 		<!-- seizing info -->
 		<div
 			class="flex flex-col gap-2 w-full relative -top-16"
-			class:invisible={selectedRollType !== 'seizing'}
+			class:invisible={selectedRollType !== 'grab'}
 		>
 			<div class="w-full flex h-6">
 				{#each seizeRewardGroups as group, i}

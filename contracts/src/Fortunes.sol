@@ -650,7 +650,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         } else {
             revert("Invalid roll action");
         }
-
+				
+				// TODO: Fix this bug where we delete the rollingDie before we emit the event
         delete rollingDie[requestId];
 
         outstandingRolls -= 1;
