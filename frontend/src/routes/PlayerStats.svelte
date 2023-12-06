@@ -2,28 +2,27 @@
 	import { PiggyBank, Coins } from 'lucide-svelte';
 	import DepositModal from './DepositModal.svelte';
 	import { createQuery } from '@tanstack/svelte-query';
-	import type { getPlayer } from '$lib/queries/player';
+	import { getPlayer } from '$lib/queries/player';
 	import { account } from '$lib/stores/account';
 	import { formatUnits } from 'viem';
 	import {
 		DEPOSIT_FACTOR,
 		DICE_PER_SECOND,
-		PRECISION,
 		PRECISION_PLACES
 	} from '$lib/constants/param';
-	import type { getTotalDeposited, getTotalFortune } from '$lib/queries/totals';
+	import { getTotalDeposited, getTotalFortune } from '$lib/queries/totals';
 	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
+
+	const locale = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 	const totalFortune = createQuery<Awaited<ReturnType<typeof getTotalFortune>>>({
 		queryKey: ['total-fortune'],
-		// queryFn: getTotalFortune
-		queryFn: () => 10_000n * PRECISION
+		queryFn: getTotalFortune
 	});
 
 	const totalDeposited = createQuery<Awaited<ReturnType<typeof getTotalDeposited>>>({
 		queryKey: ['total-deposited'],
-		// queryFn: getTotalDeposited
-		queryFn: () => 20_000n * 10n ** 18n
+		queryFn: getTotalDeposited
 	});
 
 	let dialog: HTMLDialogElement;
@@ -31,21 +30,17 @@
 	$: playerInfo = createQuery<Awaited<ReturnType<typeof getPlayer>> | null>({
 		queryKey: ['player-info', $account?.address],
 		queryFn: async () => {
-			// if (!$account?.address) return null;
-			// return await getPlayer($account.address);
-			const precision = 10n ** 6n;
-			const fortune = 100n * precision;
-			const deposit = 20n * 10n ** 18n;
-			return [fortune, deposit, 0n, 0n, false];
+			if (!$account?.address) return null;
+			return await getPlayer($account.address);
 		}
 	});
 
 	$: playerPosition = createQuery<ReturnType<typeof getPlayerPositionOnLeaderboard> | null>({
 		queryKey: ['player-position', $account?.address],
 		queryFn: () => {
-			// if (!$account?.address) {
-			// 	return null;
-			// }
+			if (!$account?.address) {
+				return null;
+			}
 			return getPlayerPositionOnLeaderboard($account.address);
 		}
 	});
@@ -86,7 +81,7 @@
 		if (totalDeposited === 0n || totalFortune === 0n) {
 			return {
 				string: '0',
-				sign: ''
+				sign: '+'
 			};
 		}
 		const precision = 10n ** 6n;
@@ -125,7 +120,7 @@
 			</div>
 		{:else if $playerInfo.status === 'success'}
 			<div class="stat-value text-primary">
-				{formatUnits($playerInfo.data?.[1] ?? 0n, 18)} AVAX
+				{locale.format(parseFloat(formatUnits($playerInfo.data?.[1] ?? 0n, 18)))} AVAX
 			</div>
 			<div class="stat-desc">
 				<span class="text-accent">~ {getRollsPerHour($playerInfo.data?.[1] ?? 0n)}</span> rolls per
@@ -168,7 +163,7 @@
 				totalFortune: $totalFortune.data
 			})}
 			<div class="stat-value text-primary">
-				{formatUnits($playerInfo.data?.[0] ?? 0n, PRECISION_PLACES)} FORTUNE
+				{locale.format(parseFloat(formatUnits($playerInfo.data?.[0] ?? 0n, PRECISION_PLACES)))} FORTUNE
 			</div>
 			<div class="stat-desc">
 				<span

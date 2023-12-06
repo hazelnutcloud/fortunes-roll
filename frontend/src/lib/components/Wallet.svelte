@@ -19,7 +19,8 @@
 			walletConnectProvider({ projectId }),
 			infuraProvider({ apiKey: '4883ecdf99f84bd3a4351502ea662fe2' }),
 			publicProvider()
-		]
+		],
+		{ batch: { multicall: true } }
 	);
 
 	const metadata = {

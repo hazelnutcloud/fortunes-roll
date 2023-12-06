@@ -1,0 +1,2 @@
+- [ ] Implement leaderboards using subgraph
+- [ ] Fill in leaderboard queries
