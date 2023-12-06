@@ -229,8 +229,14 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 	const animate = (lastTimestamp: number) => {
 		const now = performance.now();
 		const delta = now - lastTimestamp;
+		if (dice.scale.x < 1 && !!value ) {
+			dice.scale.x += (1 - dice.scale.x) / 10;
+			dice.scale.y += (1 - dice.scale.y) / 10;
+			dice.scale.z += (1 - dice.scale.z) / 10;
+			dice.visible = true;
+		}
 
-		if (value === 0) {
+		if (value === -1) {
 			// waiting for roll to land
 			if (ticker < cycle / 2) {
 				const ease = easeInOut((ticker / cycle) % 1, 2);
@@ -252,6 +258,29 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 				angles.x = illustration.rotate.x;
 				angles.y = illustration.rotate.y;
 				angles.z = illustration.rotate.z;
+			}
+		} else if (value === 0) {
+			if (ticker < cycle) {
+				const ease = (easeInOut((ticker / cycle) % 1, 2) - 0.5) * 2;
+
+				illustration.rotate.y += (TAU * delta) / 100;
+				illustration.rotate.x += (TAU * delta) / 200;
+				illustration.rotate.z += (TAU * delta) / 400;
+
+				angles.x = illustration.rotate.x;
+				angles.y = illustration.rotate.y;
+				angles.z = illustration.rotate.z;
+
+				dice.scale.x = 1 - ease;
+				dice.scale.y = 1 - ease;
+				dice.scale.z = 1 - ease;
+
+				ticker++
+			} else {
+				dice.visible = false;
+
+				ticker = 0;
+				value = null;
 			}
 		} else if (value !== null) {
 			if (ticker < cycle) {
@@ -285,7 +314,7 @@ export function dice(canvas: HTMLCanvasElement, value: number | null) {
 
 	return {
 		update(value: number) {
-			if (value) {
+			if (value > 0) {
 				const rawAnglesNext = faceAngles[value - 1];
 				anglesNext = {
 					x: rawAnglesNext.x + (Math.random() * TAU) / 30,
