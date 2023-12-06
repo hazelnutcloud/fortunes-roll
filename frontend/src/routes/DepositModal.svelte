@@ -12,8 +12,8 @@
 
 	const locale = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 	const client = useQueryClient();
-	const isDepositing = writable(false);
-	const isApproving = writable(false);
+	let isDepositing = false;
+	let isApproving = false;
 
 	let value: number;
 
@@ -50,13 +50,13 @@
 			});
 		},
 		onMutate: async () => {
-			$isApproving = true;
+			isApproving = true;
 		},
 		onError: async (_err, _, context) => {
-			$isApproving = false;
+			isApproving = false;
 		},
 		onSuccess: () => {
-			$isApproving = false;
+			isApproving = false;
 			client.invalidateQueries({ queryKey: ['player-allowance', $account?.address] });
 			if (parsedValue > 0) $depositMutation.mutate();
 		}
@@ -69,13 +69,13 @@
 			return await deposit(parsedValue);
 		},
 		onMutate: async () => {
-			$isDepositing = true;
+			isDepositing = true;
 		},
 		onError: async (_err, _, context) => {
-			$isDepositing = false;
+			isDepositing = false;
 		},
 		onSuccess: () => {
-			$isDepositing = false;
+			isDepositing = false;
 			client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
 			dialog.close();
 		}
@@ -154,8 +154,8 @@
 				{@const { can, reason } = canDeposit({
 					playerBalance: $playerBalance.data ?? 0n,
 					inputValue: parsedValue,
-					isDepositing: $isDepositing,
-					isApproving: $isApproving
+					isDepositing: isDepositing,
+					isApproving: isApproving
 				})}
 				{#if needsAllowance($playerAllowance.data ?? 0n, parsedValue)}
 					<button
