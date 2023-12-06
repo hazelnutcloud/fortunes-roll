@@ -26,7 +26,7 @@
 				type="text"
 				name=""
 				id=""
-				class="input input-bordered flex-1"
+				class="input input-bordered w-full"
 				placeholder="say something..."
 			/>
 			<button class="btn px-2 btn-primary"><SendHorizonal class="ml-1" /></button>

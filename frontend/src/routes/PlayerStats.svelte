@@ -2,20 +2,109 @@
 	import { PiggyBank, Coins } from 'lucide-svelte';
 	import DepositModal from './DepositModal.svelte';
 	import { createQuery } from '@tanstack/svelte-query';
-	import { getPlayer } from '$lib/queries/player';
-	import { getAccount } from '@wagmi/core';
+	import type { getPlayer } from '$lib/queries/player';
 	import { account } from '$lib/stores/account';
 	import { formatUnits } from 'viem';
+	import {
+		DEPOSIT_FACTOR,
+		DICE_PER_SECOND,
+		PRECISION,
+		PRECISION_PLACES
+	} from '$lib/constants/param';
+	import type { getTotalDeposited, getTotalFortune } from '$lib/queries/totals';
+	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
+
+	const totalFortune = createQuery<Awaited<ReturnType<typeof getTotalFortune>>>({
+		queryKey: ['total-fortune'],
+		// queryFn: getTotalFortune
+		queryFn: () => 10_000n * PRECISION
+	});
+
+	const totalDeposited = createQuery<Awaited<ReturnType<typeof getTotalDeposited>>>({
+		queryKey: ['total-deposited'],
+		// queryFn: getTotalDeposited
+		queryFn: () => 20_000n * 10n ** 18n
+	});
 
 	let dialog: HTMLDialogElement;
 
 	$: playerInfo = createQuery<Awaited<ReturnType<typeof getPlayer>> | null>({
 		queryKey: ['player-info', $account?.address],
 		queryFn: async () => {
-			if (!$account?.address) return null;
-			return await getPlayer($account.address);
+			// if (!$account?.address) return null;
+			// return await getPlayer($account.address);
+			const precision = 10n ** 6n;
+			const fortune = 100n * precision;
+			const deposit = 20n * 10n ** 18n;
+			return [fortune, deposit, 0n, 0n, false];
 		}
 	});
+
+	$: playerPosition = createQuery<ReturnType<typeof getPlayerPositionOnLeaderboard> | null>({
+		queryKey: ['player-position', $account?.address],
+		queryFn: () => {
+			// if (!$account?.address) {
+			// 	return null;
+			// }
+			return getPlayerPositionOnLeaderboard($account.address);
+		}
+	});
+
+	const getRollsPerHour = (deposit: bigint) => {
+		return parseFloat(
+			formatUnits((DICE_PER_SECOND * 60n * 60n * deposit) / DEPOSIT_FACTOR, PRECISION_PLACES)
+		).toLocaleString('en-US', { maximumFractionDigits: 1 });
+	};
+
+	const getRollsPerDay = (deposit: bigint) => {
+		return parseFloat(
+			formatUnits((DICE_PER_SECOND * 60n * 60n * 24n * deposit) / DEPOSIT_FACTOR, PRECISION_PLACES)
+		).toLocaleString('en-US', { maximumFractionDigits: 1 });
+	};
+
+	const getPositionChangeString = (positionChange: number) => {
+		if (positionChange === 0) {
+			return '';
+		}
+		if (positionChange > 0) {
+			return `(↑ ${positionChange})`;
+		}
+		return `(↓ ${positionChange})`;
+	};
+
+	const getYieldChangeString = ({
+		playerDeposit,
+		playerFortune,
+		totalDeposited,
+		totalFortune
+	}: {
+		playerDeposit: bigint;
+		playerFortune: bigint;
+		totalDeposited: bigint;
+		totalFortune: bigint;
+	}) => {
+		if (totalDeposited === 0n || totalFortune === 0n) {
+			return {
+				string: '0',
+				sign: ''
+			};
+		}
+		const precision = 10n ** 6n;
+
+		const depositRatio = (playerDeposit * precision) / totalDeposited;
+		const fortuneRatio = (playerFortune * precision) / totalFortune;
+
+		const sign = fortuneRatio > depositRatio ? '+' : '';
+
+		const yieldChange = ((fortuneRatio - depositRatio) * precision) / depositRatio;
+
+		return {
+			string: parseFloat(formatUnits(yieldChange, 6)).toLocaleString('en-US', {
+				maximumFractionDigits: 1
+			}),
+			sign
+		};
+	};
 
 	const openDeposit = () => {
 		dialog.showModal();
@@ -31,17 +120,25 @@
 			<div class="stat-value text-primary">
 				<span class="loading loading-spinner loading-md"></span>
 			</div>
+			<div class="stat-desc">
+				<span class="loading loading-spinner loading-sm"></span>
+			</div>
 		{:else if $playerInfo.status === 'success'}
 			<div class="stat-value text-primary">
 				{formatUnits($playerInfo.data?.[1] ?? 0n, 18)} AVAX
 			</div>
+			<div class="stat-desc">
+				<span class="text-accent">~ {getRollsPerHour($playerInfo.data?.[1] ?? 0n)}</span> rolls per
+				hour,
+				<span class="text-accent">{getRollsPerDay($playerInfo.data?.[1] ?? 0n)}</span> rolls per day.
+			</div>
 		{:else}
-			<div class="stat-value text-primary">? AVAX</div>
+			<div class="stat-value text-primary">- AVAX</div>
+			<div class="stat-desc">
+				<span class="text-accent">-</span> rolls per hour,
+				<span class="text-accent">-</span> rolls per day.
+			</div>
 		{/if}
-		<div class="stat-desc">
-			<span class="text-accent">1.24</span> rolls per hour,
-			<span class="text-accent">29.76</span> rolls per day.
-		</div>
 		<div class="stat-actions">
 			<button
 				class="btn btn-sm btn-secondary ring ring-secondary ring-offset-2 ring-offset-base-200"
@@ -56,22 +153,40 @@
 		<div class="stat-title flex gap-2 items-end">
 			<Coins /><span class="leading-none">Your Fortune</span>
 		</div>
-		{#if $playerInfo.status === 'pending'}
+		{#if $playerInfo.status === 'pending' || $totalDeposited.status === 'pending' || $totalFortune.status === 'pending' || $playerPosition.status === 'pending'}
 			<div class="stat-value text-primary">
 				<span class="loading loading-spinner loading-md"></span>
 			</div>
-		{:else if $playerInfo.status === 'success'}
+			<div class="stat-desc">
+				<span class="loading loading-spinner loading-sm"></span>
+			</div>
+		{:else if $playerInfo.status === 'success' && $totalDeposited.status === 'success' && $totalFortune.status === 'success' && $playerPosition.status === 'success'}
+			{@const yieldChange = getYieldChangeString({
+				playerDeposit: $playerInfo.data?.[1] ?? 0n,
+				playerFortune: $playerInfo.data?.[0] ?? 0n,
+				totalDeposited: $totalDeposited.data,
+				totalFortune: $totalFortune.data
+			})}
 			<div class="stat-value text-primary">
-				{formatUnits($playerInfo.data?.[0] ?? 0n, 18)} FORTUNE
+				{formatUnits($playerInfo.data?.[0] ?? 0n, PRECISION_PLACES)} FORTUNE
+			</div>
+			<div class="stat-desc">
+				<span
+					class:text-accent={yieldChange.sign === '+'}
+					class:text-error={yieldChange.sign === ''}
+					>{yieldChange.sign}{yieldChange.string}%
+				</span>{yieldChange.sign === '+' ? 'increased' : 'decreased'} yield, no.
+				<span class="text-accent">{$playerPosition.data?.position ?? '-'}</span>
+				<span class="text-success"
+					>{getPositionChangeString($playerPosition.data?.twentyFourHourChange ?? 0)}</span
+				> on the leaderboard.
 			</div>
 		{:else}
-			<div class="stat-value text-primary">? FORTUNE</div>
+			<div class="stat-value text-primary">- FORTUNE</div>
+			<div class="stat-desc">
+				<span class="text-accent">-</span>
+			</div>
 		{/if}
-		<div class="stat-desc">
-			<span class="text-accent">+2.5% </span>bonus yield, no.
-			<span class="text-accent">69</span>
-			<span class="text-success"> (↑ 2)</span> on the leaderboard.
-		</div>
 		<div class="stat-actions">
 			<a href="/leaderboard" class="btn btn-sm btn-accent">see leaderboard</a>
 		</div>
