@@ -34,17 +34,22 @@ contract CreateFortune is Script {
             vm.envAddress("FACTORY")
         );
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+				uint256 diceRollGenerationRate = 278;
+				uint256 generationRateDepositFactor = 1 * 1e18;
+				uint256 additionMultiplier = 100 * 1e6;
+				uint256 minimumFortuneToRollGrab = 500 * 1e6;
+				uint256 baseDiceRolls = 10 * 1e6;
 
         vm.startBroadcast(deployerPrivateKey);
 
         fortunesFactory.createFortune(
-            block.timestamp + (60 * 60), // 1 hour
+            block.timestamp + 60, // now + 1 minute
             block.timestamp + (30 * 24 * 60 * 60) + (60 * 60), // 30 days + 1 hour
-            278,
-            10 * 1e18,
-            100 * 1e6,
-            500 * 1e6,
-            10 * 1e6
+            diceRollGenerationRate,
+            generationRateDepositFactor,
+            additionMultiplier,
+            minimumFortuneToRollGrab,
+            baseDiceRolls
         );
 
 				vm.stopBroadcast();
