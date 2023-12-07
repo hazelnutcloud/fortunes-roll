@@ -18,6 +18,7 @@
 	import { rollFor } from '$lib/mutations/roll';
 	import { onMount } from 'svelte';
 	import { breakDownTimeLeft } from '$lib/utils/time';
+	import { splitAndRandomize } from '$lib/utils/math';
 
 	const distributionColors = ['#118ab2', '#06d6a0', '#ffd166', '#ef476f'];
 	const ONE = PRECISION;
@@ -63,12 +64,12 @@
 			  : selectedRollType === 'grab'
 			    ? `you will pay ${seizeFee} of your fortune for a chance to win a portion of the hoard according to your roll.`
 			    : 'select a roll action.';
-	$: if (timer)
+	$: if (timer && $gameStart.data && $playerInfo.data)
 		rollsRemaining = calculateRollsRemaining({
-			gameStart: $gameStart.data ?? 0n,
-			playerDeposit: $playerInfo.data?.[1] ?? 0n,
-			lastRollTimestamp: $playerInfo.data?.[3] ?? 0n,
-			rollsRemaining: $playerInfo.data?.[2] ?? 0n
+			gameStart: $gameStart.data,
+			playerDeposit: $playerInfo.data[1],
+			lastRollTimestamp: $playerInfo.data[3],
+			rollsRemaining: $playerInfo.data[2]
 		});
 	$: isRolling = $playerInfo.data?.[4] || (dice1 === -1 && dice2 === -1);
 	$: canRoll = rollsRemaining >= ONE && !isRolling;
@@ -150,8 +151,7 @@
 					dice1 = 1;
 					dice2 = 0;
 				} else {
-					dice1 = Math.floor(Math.random() * (point - 2)) + 1;
-					dice2 = point - dice1;
+					[dice1, dice2] = splitAndRandomize(point);
 				}
 				client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
 				client.invalidateQueries({ queryKey: ['total-fortune'] });
