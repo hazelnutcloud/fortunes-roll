@@ -77,6 +77,8 @@
 		onSuccess: () => {
 			isDepositing = false;
 			client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
+			client.invalidateQueries({ queryKey: ['total-fortune'] });
+			client.invalidateQueries({ queryKey: ['total-deposited'] });
 			dialog.close();
 		}
 	});

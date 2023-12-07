@@ -4,7 +4,7 @@ import { FORTUNES_ADDRESS } from '../constants/contract-addresses';
 
 export type RollParams = { type: string; multiplyStake?: bigint };
 
-export async function prepareRoll({ type, multiplyStake }: RollParams) {
+export async function rollFor({ type, multiplyStake }: RollParams) {
 	let config;
 
 	const params = {
@@ -31,10 +31,7 @@ export async function prepareRoll({ type, multiplyStake }: RollParams) {
 		});
 	}
 
-	return config;
-}
-
-export async function rollFor(config: Awaited<ReturnType<typeof prepareRoll>>) {
 	const res = await writeContract(config);
+
 	return await waitForTransaction({ hash: res.hash });
 }

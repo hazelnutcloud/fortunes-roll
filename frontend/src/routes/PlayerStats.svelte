@@ -78,7 +78,7 @@
 		totalDeposited: bigint;
 		totalFortune: bigint;
 	}) => {
-		if (totalDeposited === 0n || totalFortune === 0n) {
+		if (totalDeposited === 0n || totalFortune === 0n || playerDeposit === 0n || playerFortune === 0n) {
 			return {
 				string: '0',
 				sign: '+'

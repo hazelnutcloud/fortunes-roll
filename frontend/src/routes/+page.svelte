@@ -15,7 +15,9 @@
 	import { getGameStart } from '$lib/queries/game';
 	import { formatUnits } from 'viem';
 	import { watchDiceLand } from '$lib/subscriptions/roll';
-	import { prepareRoll, rollFor } from '$lib/mutations/roll';
+	import { rollFor } from '$lib/mutations/roll';
+	import { onMount } from 'svelte';
+	import { breakDownTimeLeft } from '$lib/utils/time';
 
 	const distributionColors = ['#118ab2', '#06d6a0', '#ffd166', '#ef476f'];
 	const ONE = PRECISION;
@@ -31,7 +33,10 @@
 		($page.url.searchParams.get('roll-action') as any) ?? undefined;
 	let multiplyStake = 6;
 	let unwatchDiceLand: () => void;
-	let timeOut: NodeJS.Timeout;
+	let interval: NodeJS.Timeout;
+	let timer = 0;
+	let secondsToNextRoll = 0;
+	let rollsRemaining = 0n;
 
 	let seizeEnabled = true;
 	let seizeRewardGroups = [
@@ -58,17 +63,22 @@
 			  : selectedRollType === 'grab'
 			    ? `you will pay ${seizeFee} of your fortune for a chance to win a portion of the hoard according to your roll.`
 			    : 'select a roll action.';
-	$: rollsRemaining = calculateRollsRemaining({
-		gameStart: $gameStart.data ?? 0n,
-		playerDeposit: $playerInfo.data?.[1] ?? 0n,
-		lastRollTimestamp: $playerInfo.data?.[3] ?? 0n,
-		rollsRemaining: $playerInfo.data?.[2] ?? 0n
-	});
-	$: canRoll = rollsRemaining >= ONE;
-	$: if ($playerInfo.data?.[4]) {
-		dice1 = -1;
-		dice2 = -1;
-		unwatchDiceLand = playerWatchDiceLand();
+	$: if (timer)
+		rollsRemaining = calculateRollsRemaining({
+			gameStart: $gameStart.data ?? 0n,
+			playerDeposit: $playerInfo.data?.[1] ?? 0n,
+			lastRollTimestamp: $playerInfo.data?.[3] ?? 0n,
+			rollsRemaining: $playerInfo.data?.[2] ?? 0n
+		});
+	$: isRolling = $playerInfo.data?.[4] || (dice1 === -1 && dice2 === -1);
+	$: canRoll = rollsRemaining >= ONE && !isRolling;
+	$: if ($playerInfo.data?.[1] && $playerInfo.data?.[1] > 0n && rollsRemaining < ONE) {
+		secondsToNextRoll = Number(
+			calculateTimeToNextRoll({
+				playerDeposit: $playerInfo.data?.[1] ?? 0n,
+				rollsRemaining
+			})
+		);
 	}
 
 	const getStakePercentage = (roll: number) => {
@@ -95,43 +105,69 @@
 		return rollsRemaining + newRolls + baseDice;
 	};
 
+	const calculateTimeToNextRoll = ({
+		playerDeposit,
+		rollsRemaining
+	}: {
+		playerDeposit: bigint;
+		rollsRemaining: bigint;
+	}) => {
+		if (playerDeposit === 0n) return 0;
+		const diff = ONE - rollsRemaining;
+
+		const secondsRemaining = (diff * DEPOSIT_FACTOR) / (DICE_PER_SECOND * playerDeposit);
+
+		return secondsRemaining;
+	};
+
 	const roll = async () => {
 		if (!selectedRollType) return;
 		try {
-			const config = await prepareRoll({
+			dice1 = -1;
+			dice2 = -1;
+			await rollFor({
 				type: selectedRollType,
 				multiplyStake: BigInt(multiplyStake)
 			});
-			dice1 = -1;
-			dice2 = -1;
-			await rollFor(config);
 			unwatchDiceLand = playerWatchDiceLand();
 		} catch (e) {
 			console.error(e);
-			dice1 = null;
-			dice2 = null;
+			dice1 = 0;
+			dice2 = 0;
 		}
 	};
 
 	const playerWatchDiceLand = () =>
 		watchDiceLand((diceLands) => {
-			console.log(diceLands, $account?.address);
 			const playersDice = diceLands.find(
-				({ args: { player } }) => player && player.toLowerCase() === $account?.address?.toLowerCase()
+				({ args: { player } }) =>
+					player && player.toLowerCase() === $account?.address?.toLowerCase()
 			);
 			if (playersDice && playersDice.args.diceRoll) {
 				const point = Number(playersDice.args.diceRoll);
+				console.log('point', point);
 				if (point === 1) {
 					dice1 = 1;
 					dice2 = 0;
 				} else {
-					dice1 = Math.floor(Math.random() * point - 1) + 1;
+					dice1 = Math.floor(Math.random() * (point - 2)) + 1;
 					dice2 = point - dice1;
 				}
 				client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
+				client.invalidateQueries({ queryKey: ['total-fortune'] });
+				client.invalidateQueries({ queryKey: ['total-deposited'] });
 				unwatchDiceLand?.();
 			}
 		});
+
+	onMount(() => {
+		interval = setInterval(() => {
+			timer = timer + 1;
+		}, 1000);
+		return () => {
+			clearInterval(interval);
+		};
+	});
 </script>
 
 <div class="h-full grid place-items-center">
@@ -172,13 +208,14 @@
 
 		<!-- countdown -->
 		{#if rollsRemaining < ONE && ($playerInfo.data?.[1] ?? 0n) > 0n}
+			{@const { hours, minutes, seconds } = breakDownTimeLeft(secondsToNextRoll)}
 			<div class="flex w-full items-center gap-2">
 				<div class="flex-1"></div>
 				<span class="text-sm">next roll: </span>
 				<span class="countdown font-mono text-sm badge badge-accent">
-					<span style="--value:1;"></span>h
-					<span style="--value:24;"></span>m
-					<span style="--value:50;"></span>s
+					<span style={`--value:${hours};`}></span>h
+					<span style={`--value:${minutes};`}></span>m
+					<span style={`--value:${seconds};`}></span>s
 				</span>
 			</div>
 		{/if}

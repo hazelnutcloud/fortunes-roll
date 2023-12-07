@@ -24,11 +24,11 @@
 		],
 		{ batch: { multicall: true }, pollingInterval: 2000 }
 	);
-	const webSocketPublicClient = createPublicClient({
-		chain: avalanche,
-		transport: webSocket('wss://avalanche-c-chain.publicnode.com'),
-		batch: { multicall: true }
-	});
+	// const webSocketPublicClient = createPublicClient({
+	// 	chain: avalanche,
+	// 	transport: webSocket('wss://avalanche-c-chain.publicnode.com'),
+	// 	batch: { multicall: true }
+	// });
 
 	const metadata = {
 		name: "Fortune's Roll",
@@ -46,7 +46,7 @@
 			new CoinbaseWalletConnector({ chains, options: { appName: metadata.name } })
 		],
 		publicClient,
-		webSocketPublicClient
+		// webSocketPublicClient
 	});
 
 	const modal = createWeb3Modal({ wagmiConfig, projectId, chains, defaultChain: avalanche });
