@@ -44,7 +44,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     event Withdraw(
         address indexed player,
         uint256 amount,
-        bytes32 kind,
+        string kind,
         uint256 timestamp
     );
     event DiceRolled(
@@ -78,10 +78,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     uint8 private constant DICE_SIDES = 12;
     uint256 private constant PRECISION = 1e6;
     uint256 private constant PROTOCOL_SHARE = 50000; // 5% of generated yield goes to protocol
-
-    bytes32 public constant WITHDRAW = keccak256(abi.encodePacked("withdraw"));
-    bytes32 public constant FORFEIT = keccak256(abi.encodePacked("forfeit"));
-    bytes32 public constant REDEEM = keccak256(abi.encodePacked("redeem"));
 
     struct Player {
         uint256 fortune;
@@ -221,7 +217,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         STAKED_AVAX.transfer(msg.sender, amount);
 
-        emit Withdraw(msg.sender, amount, WITHDRAW, block.timestamp);
+        emit Withdraw(msg.sender, amount, "withdraw", block.timestamp);
     }
 
     function forfeit() external nonReentrant {
@@ -252,7 +248,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         STAKED_AVAX.transfer(msg.sender, amount);
 
-        emit Withdraw(msg.sender, amount, FORFEIT, block.timestamp);
+        emit Withdraw(msg.sender, amount, "forfeit", block.timestamp);
         emit FortuneLost(msg.sender, fortune, block.timestamp);
     }
 
@@ -275,12 +271,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         totalProtocolRewards += protocolReward;
 
+        emit Withdraw(msg.sender, playerReward, "redeem", block.timestamp);
+        emit FortuneLost(msg.sender, player.fortune, block.timestamp);
+
         delete players[msg.sender];
 
         STAKED_AVAX.transfer(msg.sender, playerReward);
-
-        emit Withdraw(msg.sender, playerReward, REDEEM, block.timestamp);
-        emit FortuneLost(msg.sender, player.fortune, block.timestamp);
     }
 
     function rollAdd() external returns (uint256) {
@@ -650,12 +646,6 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         } else {
             revert("Invalid roll action");
         }
-				
-				// TODO: Fix this bug where we delete the rollingDie before we emit the event
-        delete rollingDie[requestId];
-
-        outstandingRolls -= 1;
-        player.hasPendingRoll = false;
 
         emit DiceLanded(
             rollingDice.player,
@@ -666,5 +656,10 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             diceRoll,
             block.timestamp
         );
+				
+        delete rollingDie[requestId];
+
+        outstandingRolls -= 1;
+        player.hasPendingRoll = false;
     }
 }
