@@ -5,11 +5,7 @@
 	import { getPlayer } from '$lib/queries/player';
 	import { account } from '$lib/stores/account';
 	import { formatUnits } from 'viem';
-	import {
-		DEPOSIT_FACTOR,
-		DICE_PER_SECOND,
-		PRECISION_PLACES
-	} from '$lib/constants/param';
+	import { DEPOSIT_FACTOR, DICE_PER_SECOND, PRECISION_PLACES } from '$lib/constants/param';
 	import { getTotalDeposited, getTotalFortune } from '$lib/queries/game';
 	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
 
@@ -78,7 +74,12 @@
 		totalDeposited: bigint;
 		totalFortune: bigint;
 	}) => {
-		if (totalDeposited === 0n || totalFortune === 0n || playerDeposit === 0n || playerFortune === 0n) {
+		if (
+			totalDeposited === 0n ||
+			totalFortune === 0n ||
+			playerDeposit === 0n ||
+			playerFortune === 0n
+		) {
 			return {
 				string: '0',
 				sign: '+'

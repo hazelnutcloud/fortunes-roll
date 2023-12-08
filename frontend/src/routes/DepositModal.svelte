@@ -2,11 +2,10 @@
 	import { FORTUNES_ADDRESS, SAVAX_ADDRESS } from '$lib/constants/contract-addresses';
 	import { approve } from '$lib/mutations/allowance';
 	import { deposit } from '$lib/mutations/deposit';
-	import { getPlayer, getPlayerAllowance, getPlayerBalance } from '$lib/queries/player';
+	import { getPlayerAllowance, getPlayerBalance } from '$lib/queries/player';
 	import { account } from '$lib/stores/account';
 	import { createMutation, createQuery, useQueryClient } from '@tanstack/svelte-query';
-	import { writable } from 'svelte/store';
-	import { formatUnits, maxUint256, parseUnits } from 'viem';
+	import { formatUnits, parseUnits } from 'viem';
 
 	export let dialog: HTMLDialogElement;
 

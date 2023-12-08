@@ -2,7 +2,14 @@
 	import { Wallet2 } from 'lucide-svelte';
 	import { avalanche } from '@wagmi/core/chains';
 	import { EIP6963Connector, createWeb3Modal, walletConnectProvider } from '@web3modal/wagmi';
-	import { watchAccount, configureChains, createConfig, InjectedConnector, watchContractEvent, erc20ABI } from '@wagmi/core';
+	import {
+		watchAccount,
+		configureChains,
+		createConfig,
+		InjectedConnector,
+		watchContractEvent,
+		erc20ABI
+	} from '@wagmi/core';
 	import { publicProvider } from '@wagmi/core/providers/public';
 	import { infuraProvider } from '@wagmi/core/providers/infura';
 	import { WalletConnectConnector } from '@wagmi/core/connectors/walletConnect';
@@ -45,7 +52,7 @@
 			new InjectedConnector({ chains, options: { shimDisconnect: true } }),
 			new CoinbaseWalletConnector({ chains, options: { appName: metadata.name } })
 		],
-		publicClient,
+		publicClient
 		// webSocketPublicClient
 	});
 
@@ -54,15 +61,17 @@
 	let ensName: Promise<string | null> | undefined;
 	let accountAddress: string | undefined;
 
-	watchAccount((account) => {
-		if (account.address) {
-			ensName = getEnsName(account.address);
-			accountAddress = truncateAddress(account.address);
-		} else {
-			ensName = undefined;
-			accountAddress = undefined;
-		}
-		accountStore.set(account);
+	onMount(() => {
+		watchAccount((account) => {
+			if (account.address) {
+				ensName = getEnsName(account.address);
+				accountAddress = truncateAddress(account.address);
+			} else {
+				ensName = undefined;
+				accountAddress = undefined;
+			}
+			accountStore.set(account);
+		});
 	});
 </script>
 

@@ -4,11 +4,13 @@
 	import { QueryClient, QueryClientProvider } from '@tanstack/svelte-query';
 	import { browser } from '$app/environment';
 	import Navbar from './Navbar.svelte';
+	import { hashKey } from '$lib/utils/hash-key';
 
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: {
-				enabled: browser
+				enabled: browser,
+				queryKeyHashFn: hashKey
 			}
 		}
 	});

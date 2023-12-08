@@ -44,10 +44,12 @@ With the core game logic in place, Fortune's Roll can be extended in many ways a
 ## Features Roadmap
 
 - [x] Core game logic
+- [ ] Batch actions
 - [ ] Player profiles
 - [ ] Collectibles
 - [ ] Referrals
-- [ ] ...and more!
+- [ ] Separate avalanche subnet
+- [ ] ... 👀
 
 ## Inspiration
 

@@ -12,20 +12,37 @@
 		DICE_PER_SECOND,
 		PRECISION
 	} from '$lib/constants/param';
-	import { getGameStart } from '$lib/queries/game';
+	import {
+		getGameStart,
+		getGrabbening,
+		getGrabbeningIndex,
+		getGrabbeningRewardsInfo,
+		getPlayerGrabbening,
+		getPotBalance
+	} from '$lib/queries/game';
 	import { formatUnits } from 'viem';
 	import { watchDiceLand } from '$lib/subscriptions/roll';
 	import { rollFor } from '$lib/mutations/roll';
 	import { onMount } from 'svelte';
 	import { breakDownTimeLeft } from '$lib/utils/time';
 	import { splitAndRandomize } from '$lib/utils/math';
+	import { formatRewardGroups } from '$lib/utils/format';
 
-	const distributionColors = ['#118ab2', '#06d6a0', '#ffd166', '#ef476f'];
+	const distributionColors = ['#ef476f', '#ffd166', '#06d6a0', '#118ab2'];
 	const ONE = PRECISION;
+	const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 	const client = useQueryClient();
 	const gameStart = createQuery({
 		queryKey: ['game-start'],
 		queryFn: getGameStart
+	});
+	const grabbeningIndex = createQuery({
+		queryKey: ['grabbening-index'],
+		queryFn: getGrabbeningIndex
+	});
+	const potBalance = createQuery({
+		queryKey: ['pot-balance'],
+		queryFn: getPotBalance
 	});
 
 	let dice1: number | null = null;
@@ -35,18 +52,50 @@
 	let multiplyStake = 6;
 	let unwatchDiceLand: () => void;
 	let interval: NodeJS.Timeout;
-	let timer = 0;
 	let secondsToNextRoll = 0;
 	let rollsRemaining = 0n;
+	let now = BigInt(Math.floor(Date.now() / 1000));
 
-	let seizeEnabled = true;
-	let seizeRewardGroups = [
-		{ percentage: 30, from: 6, to: 9 },
-		{ percentage: 20, from: 10, to: 11 },
-		{ percentage: 10, from: 12, to: 12 }
-	];
-	let seizeFee = 5;
+	$: playerGrabbening = createQuery({
+		queryKey: ['player-grabbening', $account?.address, $grabbeningIndex.data],
+		queryFn: async () => {
+			if (!$account?.address) return null;
+			if ($grabbeningIndex.data === undefined) return null;
+			if (!$grabbeningRewards.data) return null;
 
+			return await getPlayerGrabbening(
+				$grabbeningIndex.data,
+				$account.address,
+				$grabbeningRewards.data.rollsToRewards
+			);
+		}
+	});
+	$: grabbening = createQuery({
+		queryKey: ['grabbening', $grabbeningIndex.data],
+		queryFn: async () => {
+			if ($grabbeningIndex.data === undefined) return null;
+			return await getGrabbening($grabbeningIndex.data);
+		}
+	});
+	$: grabbeningRewards = createQuery({
+		queryKey: ['grabbening-rewards', $grabbening.data],
+		queryFn: async () => {
+			if (!$grabbening.data) return null;
+			if ($grabbening.data[0] === 0n) return null;
+			if ($grabbeningIndex.data === undefined) return null;
+
+			return await getGrabbeningRewardsInfo($grabbeningIndex.data);
+		}
+	});
+	$: grabbeningFee = formatUnits($grabbening.data?.[2] ?? 0n, 4);
+	$: grabbeningRewardGroups = $grabbeningRewards.data
+		? formatRewardGroups(
+				$grabbeningRewards.data.rollsToRewards,
+				$grabbeningRewards.data.rewardGroups
+		  )
+		: [];
+	$: grabEnabled =
+		($grabbening.data && $grabbening.data[0] > 0n && now < $grabbening.data[1]) ?? false;
 	$: playerInfo = createQuery({
 		queryKey: ['player-info', $account?.address],
 		queryFn: async () => {
@@ -62,10 +111,11 @@
 			: selectedRollType === 'add'
 			  ? 'you will win 100 fortune for each point you roll. i.e. if you roll 6, you will win 600 fortune.'
 			  : selectedRollType === 'grab'
-			    ? `you will pay ${seizeFee} of your fortune for a chance to win a portion of the hoard according to your roll.`
+			    ? `you will pay ${grabbeningFee}% of your fortune for a chance to win a portion of the hoard according to your roll.`
 			    : 'select a roll action.';
-	$: if (timer && $gameStart.data && $playerInfo.data)
+	$: if ($gameStart.data && $playerInfo.data)
 		rollsRemaining = calculateRollsRemaining({
+			now,
 			gameStart: $gameStart.data,
 			playerDeposit: $playerInfo.data[1],
 			lastRollTimestamp: $playerInfo.data[3],
@@ -90,15 +140,16 @@
 		playerDeposit,
 		rollsRemaining,
 		lastRollTimestamp,
-		gameStart
+		gameStart,
+		now
 	}: {
 		playerDeposit: bigint;
 		rollsRemaining: bigint;
 		lastRollTimestamp: bigint;
 		gameStart: bigint;
+		now: bigint;
 	}) => {
 		if (playerDeposit === 0n) return 0n;
-		const now = BigInt(Math.floor(Date.now() / 1000));
 		const isFirstRoll = lastRollTimestamp === 0n;
 		const start = isFirstRoll ? gameStart : lastRollTimestamp;
 		const baseDice = isFirstRoll ? BASE_DICE_ROLLS : 0n;
@@ -119,6 +170,28 @@
 		const secondsRemaining = (diff * DEPOSIT_FACTOR) / (DICE_PER_SECOND * playerDeposit);
 
 		return secondsRemaining;
+	};
+
+	const calculatePotentialWinnings = ({
+		playerRoll,
+		potBalance,
+		rewardGroups,
+		rollTally,
+		rollsToRewards
+	}: {
+		potBalance: bigint;
+		playerRoll: bigint;
+		rollTally: bigint;
+		rollsToRewards: bigint[];
+		rewardGroups: bigint[];
+	}) => {
+		if (rollTally === 0n) return 0;
+		const rewardsGroupIndex = Number(rollsToRewards[Number(playerRoll) - 1]);
+		const rewardShare = rewardGroups[rewardsGroupIndex];
+		const rewards = parseFloat(
+			formatUnits((potBalance * rewardShare * PRECISION) / PRECISION / rollTally, 12)
+		);
+		return rewards;
 	};
 
 	const roll = async () => {
@@ -156,13 +229,16 @@
 				client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
 				client.invalidateQueries({ queryKey: ['total-fortune'] });
 				client.invalidateQueries({ queryKey: ['total-deposited'] });
+				client.invalidateQueries({
+					queryKey: ['player-grabbening', $account?.address, $grabbeningIndex.data]
+				});
 				unwatchDiceLand?.();
 			}
 		});
 
 	onMount(() => {
 		interval = setInterval(() => {
-			timer = timer + 1;
+			now = BigInt(Math.floor(Date.now() / 1000));
 		}, 1000);
 		return () => {
 			clearInterval(interval);
@@ -175,9 +251,22 @@
 		<PlayerStats />
 
 		<!-- dice -->
-		<div class="flex bg-base-200 rounded-box justify-center w-full py-10 gap-4 shadow">
-			<canvas width="250" height="250" class="hover:cursor-move" use:dice={dice1}></canvas>
-			<canvas width="250" height="250" class="hover:cursor-move" use:dice={dice2}></canvas>
+		<div
+			class="flex flex-col items-center bg-base-200 rounded-box justify-center w-full py-10 shadow"
+		>
+			<div class="flex gap-4">
+				<canvas width="250" height="250" class="hover:cursor-move" use:dice={dice1}></canvas>
+				<canvas width="250" height="250" class="hover:cursor-move" use:dice={dice2}></canvas>
+			</div>
+			{#if dice1 === -1}
+				<div class="w-full text-center">rolling...</div>
+			{:else if dice1 && dice2}
+				<div class="w-full text-center">
+					you rolled a <span class="text-accent">{dice1 + dice2}</span>!
+				</div>
+			{:else}
+				<div class="w-full text-center h-6"></div>
+			{/if}
 		</div>
 
 		<!-- roll -->
@@ -194,16 +283,21 @@
 				<option disabled selected value="">Roll for...</option>
 				<option value="add"><Plus />Add</option>
 				<option value="multiply"><X />Multiply</option>
-				<option value="grab" disabled={!seizeEnabled}><Grab />Seizing</option>
+				<option value="grab" disabled={!grabEnabled}><Grab />Seizing</option>
 			</select>
-			<button
-				class="btn btn-secondary shadow ring-secondary ring-offset-base-100 ring-offset-2 tooltip tooltip-right"
-				class:btn-disabled={!canRoll}
-				class:ring={canRoll}
-				data-tip={`${Math.floor(parseFloat(formatUnits(rollsRemaining, 6)))} rolls remaining.`}
-				disabled={!canRoll}
-				on:click={roll}><Dices /></button
-			>
+			<div class="indicator">
+				<span class="indicator-item badge badge-accent"
+					>x{Math.floor(parseFloat(formatUnits(rollsRemaining, 6)))}</span
+				>
+				<button
+					class="btn btn-secondary shadow ring-secondary ring-offset-base-100 ring-offset-2 tooltip tooltip-right"
+					data-tip={`${Math.floor(parseFloat(formatUnits(rollsRemaining, 6)))} rolls remaining.`}
+					class:btn-disabled={!canRoll}
+					class:ring={canRoll}
+					disabled={!canRoll}
+					on:click={roll}><Dices /></button
+				>
+			</div>
 		</div>
 
 		<!-- countdown -->
@@ -244,21 +338,41 @@
 			class:invisible={selectedRollType !== 'grab'}
 		>
 			<div class="w-full flex h-6">
-				{#each seizeRewardGroups as group, i}
+				{#each grabbeningRewardGroups as group, i}
+					{@const rewards = numberFormatter.format(
+						(parseFloat(formatUnits($potBalance.data ?? 0n, 6)) * group.percentage) / 100
+					)}
 					<div
 						class={'h-full tooltip'}
 						class:rounded-l={i === 0}
-						class:rounded-r={i === seizeRewardGroups.length - 1}
-						style={`flex: ${group.percentage}; background-color: ${
+						class:rounded-r={i === grabbeningRewardGroups.length - 1}
+						style={`flex: ${group.percentage + 10}; background-color: ${
 							distributionColors[i % distributionColors.length]
 						}`}
 						data-tip={`roll ${
 							group.from === group.to ? group.from : `${group.from} - ${group.to}`
-						} (shares ${group.percentage}% of hoard)`}
+						} (${rewards} FORTUNE shared)`}
 					></div>
 				{/each}
 			</div>
-			<div class="text-center w-full text-sm">roll → rewards distribution</div>
+			{#if $playerGrabbening.data && $grabbeningRewards.data}
+				{#if $playerGrabbening.data.roll === 0n}
+					<div class="text-center w-full text-sm">roll to earn a share of the hoard.</div>
+				{:else}
+					{@const potentialReward = calculatePotentialWinnings({
+						playerRoll: $playerGrabbening.data.roll,
+						potBalance: $potBalance.data ?? 0n,
+						rewardGroups: $grabbeningRewards.data.rewardGroups,
+						rollsToRewards: $grabbeningRewards.data.rollsToRewards,
+						rollTally: $playerGrabbening.data.tally
+					})}
+					<div class="text-center w-full text-sm">
+						your roll: <span class="text-accent">{$playerGrabbening.data.roll}</span>
+						(<span class="text-accent">{numberFormatter.format(potentialReward)} FORTUNE</span> potential
+						winnings.)
+					</div>
+				{/if}
+			{/if}
 		</div>
 	</div>
 </div>
