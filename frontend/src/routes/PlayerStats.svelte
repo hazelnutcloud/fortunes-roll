@@ -1,15 +1,29 @@
 <script lang="ts">
 	import { PiggyBank, Coins } from 'lucide-svelte';
 	import DepositModal from './DepositModal.svelte';
-	import { createQuery } from '@tanstack/svelte-query';
+	import { createQuery, useQueryClient } from '@tanstack/svelte-query';
 	import { getPlayer } from '$lib/queries/player';
 	import { account } from '$lib/stores/account';
 	import { formatUnits } from 'viem';
 	import { DEPOSIT_FACTOR, DICE_PER_SECOND, PRECISION_PLACES } from '$lib/constants/param';
-	import { getTotalDeposited, getTotalFortune } from '$lib/queries/game';
+	import { getGameEnd, getGameStart, getTotalDeposited, getTotalFortune } from '$lib/queries/game';
 	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
+	import { nowSeconds } from '$lib/stores/time';
+	import { prepareWriteContract, waitForTransaction, writeContract } from '@wagmi/core';
+	import { FORTUNES_ABI } from '$lib/abis/fortunes';
+	import { FORTUNES_ADDRESS } from '$lib/constants/contract-addresses';
 
 	const locale = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+	const client = useQueryClient();
+
+	const gameStart = createQuery({
+		queryKey: ['game-start'],
+		queryFn: getGameStart
+	});
+	const gameEnd = createQuery({
+		queryKey: ['game-end'],
+		queryFn: getGameEnd
+	});
 
 	const totalFortune = createQuery<Awaited<ReturnType<typeof getTotalFortune>>>({
 		queryKey: ['total-fortune'],
@@ -106,9 +120,39 @@
 		dialog.showModal();
 	};
 
-	const withdraw = () => {
-		console.log('withdraw')
-	}
+	const withdraw = async () => {
+		if (!$gameStart.data || !$gameEnd.data) {
+			return;
+		}
+		let config;
+
+		if ($nowSeconds < $gameStart.data) {
+			config = await prepareWriteContract({
+				abi: FORTUNES_ABI,
+				address: FORTUNES_ADDRESS,
+				functionName: 'withdraw'
+			});
+		} else if ($nowSeconds >= $gameStart.data && $nowSeconds < $gameEnd.data) {
+			config = await prepareWriteContract({
+				abi: FORTUNES_ABI,
+				address: FORTUNES_ADDRESS,
+				functionName: 'forfeit'
+			});
+		} else {
+			config = await prepareWriteContract({
+				abi: FORTUNES_ABI,
+				address: FORTUNES_ADDRESS,
+				functionName: 'redeem'
+			});
+		}
+
+		const res = await writeContract(config);
+		await waitForTransaction({ hash: res.hash });
+
+		client.invalidateQueries({ queryKey: ['player-info', $account?.address] });
+		client.invalidateQueries({ queryKey: ['total-deposited'] });
+		client.invalidateQueries({ queryKey: ['total-fortune'] });
+	};
 </script>
 
 <div class="stats shadow">
@@ -144,7 +188,7 @@
 				class="btn btn-sm btn-secondary ring ring-secondary ring-offset-2 ring-offset-base-200"
 				on:click={openDeposit}>deposit</button
 			>
-				<button class="btn btn-sm btn-ghost" on:click={withdraw}>withdraw</button>
+			<button class="btn btn-sm btn-ghost" on:click={withdraw}>withdraw</button>
 		</div>
 	</div>
 	<div
