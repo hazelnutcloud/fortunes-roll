@@ -8,7 +8,6 @@
 		getPotBalance
 	} from '$lib/queries/game';
 	import { account } from '$lib/stores/account';
-	import { nowSeconds } from '$lib/stores/time';
 	import { formatRewardGroups } from '$lib/utils/format';
 	import { createQuery } from '@tanstack/svelte-query';
 	import { formatUnits } from 'viem';
@@ -85,23 +84,24 @@
 	};
 </script>
 
-<div class="flex flex-col gap-2 w-full relative">
+<div class="flex flex-col gap-2 w-full relative min-h-[4rem]">
+	<slot />
 	<div class="w-full flex h-6">
 		{#each grabbeningRewardGroups as group, i}
 			{@const rewards = numberFormatter.format(
 				(parseFloat(formatUnits($potBalance.data ?? 0n, 6)) * group.percentage) / 100
 			)}
 			<div
-				class={'h-full tooltip'}
-				class:rounded-l={i === 0}
-				class:rounded-r={i === grabbeningRewardGroups.length - 1}
+				class={'h-full tooltip text-primary-content'}
+				class:rounded-l-box={i === 0}
+				class:rounded-r-box={i === grabbeningRewardGroups.length - 1}
 				style={`flex: ${group.percentage + 10}; background-color: ${
 					distributionColors[i % distributionColors.length]
 				}`}
-				data-tip={`roll ${
-					group.from === group.to ? group.from : `${group.from} - ${group.to}`
-				} (${rewards} FORTUNE shared)`}
-			></div>
+				data-tip={`${group.percentage}% (${rewards} FORTUNE shared)`}
+			>
+				{group.from === group.to ? group.from : `${group.from} - ${group.to}`}
+			</div>
 		{/each}
 	</div>
 	{#if $playerGrabbening.data && $grabbeningRewards.data}

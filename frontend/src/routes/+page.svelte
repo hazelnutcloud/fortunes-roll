@@ -19,7 +19,7 @@
 	import { breakDownTimeLeft } from '$lib/utils/time';
 	import { splitAndRandomize } from '$lib/utils/math';
 	import { nowSeconds } from '$lib/stores/time';
-	import GrabInfo from './GrabInfo.svelte';
+	import GrabInfo from './GrabRewards.svelte';
 
 	const ONE = PRECISION;
 	const client = useQueryClient();
@@ -208,7 +208,7 @@
 				<option disabled selected value="">Roll for...</option>
 				<option value="add"><Plus />Add</option>
 				<option value="multiply"><X />Multiply</option>
-				<option value="grab" disabled={!grabEnabled}><Grab />Seizing</option>
+				<option value="grab" disabled={!grabEnabled}><Grab />Grab</option>
 			</select>
 			<div class="indicator">
 				<span class="indicator-item badge badge-accent"
@@ -239,23 +239,29 @@
 			</div>
 		{/if}
 
+		{#if selectedRollType !== 'multiply' && selectedRollType !== 'grab'}
+			<div class="h-16"></div>
+		{/if}
+
 		<!-- slider -->
-		<div class="flex flex-col gap-2 w-full" class:invisible={selectedRollType !== 'multiply'}>
-			<input
-				type="range"
-				min="1"
-				max="12"
-				bind:value={multiplyStake}
-				class="range range-secondary w-full"
-				step="1"
-				disabled={selectedRollType !== 'multiply'}
-			/>
-			<div class="w-full flex justify-between text-xs px-2">
-				{#each Array(12) as _, i}
-					<span class="tooltip font-mono" data-tip={getStakePercentage(i + 1)}>{i + 1}</span>
-				{/each}
+		{#if selectedRollType === 'multiply'}
+			<div class="flex flex-col gap-2 w-full h-16">
+				<input
+					type="range"
+					min="1"
+					max="12"
+					bind:value={multiplyStake}
+					class="range range-secondary w-full"
+					step="1"
+					disabled={selectedRollType !== 'multiply'}
+				/>
+				<div class="w-full flex justify-between text-xs px-2">
+					{#each Array(12) as _, i}
+						<span class="tooltip font-mono" data-tip={getStakePercentage(i + 1)}>{i + 1}</span>
+					{/each}
+				</div>
 			</div>
-		</div>
+		{/if}
 
 		<!-- seizing info -->
 		{#if selectedRollType === 'grab'}

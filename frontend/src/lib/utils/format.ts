@@ -24,3 +24,17 @@ export function formatRewardGroups(rollToRewards: bigint[], rewardGroups: bigint
 
 	return Object.values(grouped).sort((a, b) => a.from - b.from);
 }
+
+export const numberFormatter = new Intl.NumberFormat('en-US', {
+	maximumFractionDigits: 2
+});
+
+export function formatBigint(value: bigint, decimals: number) {
+	return numberFormatter.format(parseFloat(formatUnits(value, decimals)));
+}
+
+export const dateFormatter = new Intl.DateTimeFormat('en-US', {
+	year: 'numeric',
+	month: 'short',
+	day: 'numeric'
+});

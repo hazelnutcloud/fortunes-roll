@@ -9,8 +9,6 @@
 	import { getTotalDeposited, getTotalFortune } from '$lib/queries/game';
 	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
 
-	export let showWithdraw = false;
-
 	const locale = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 
 	const totalFortune = createQuery<Awaited<ReturnType<typeof getTotalFortune>>>({
@@ -142,13 +140,11 @@
 			</div>
 		{/if}
 		<div class="stat-actions flex gap-2">
-			{#if showWithdraw}
-				<button class="btn btn-sm btn-accent" on:click={withdraw}>withdraw</button>
-			{/if}
 			<button
 				class="btn btn-sm btn-secondary ring ring-secondary ring-offset-2 ring-offset-base-200"
-				on:click={openDeposit}>deposit more</button
+				on:click={openDeposit}>deposit</button
 			>
+				<button class="btn btn-sm btn-ghost" on:click={withdraw}>withdraw</button>
 		</div>
 	</div>
 	<div
