@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { CalendarSearch, Landmark } from 'lucide-svelte';
 	import { onMount } from 'svelte';
+	import PlayerStats from '../PlayerStats.svelte';
+	import GameStats from './GameStats.svelte';
+	import GrabInfo from '../GrabInfo.svelte';
 
 	const daysMs = 1000 * 60 * 60 * 24;
 	const hoursMs = 1000 * 60 * 60;
@@ -21,8 +24,18 @@
 	});
 </script>
 
-<div class="h-full flex flex-col items-center justify-center gap-8">
-	{#if mode === 'none'}
+<div class="flex justify-center w-full py-16">
+	<div class="w-full max-w-screen-lg flex flex-col gap-4">
+		<h2 class="font-extrabold text-lg underline">player statistics.</h2>
+		<PlayerStats showWithdraw />
+
+		<h2 class="font-extrabold text-lg underline mt-8">game statistics.</h2>
+		<GameStats />
+
+		<h2 class="font-extrabold text-lg underline mt-8">grabbing information.</h2>
+		<GrabInfo />
+	</div>
+	<!-- {#if mode === 'none'}
 		<div role="alert" class="alert shadow-lg max-w-md">
 			<CalendarSearch />
 			<div>
@@ -64,5 +77,5 @@
 				fortune from lost bets go here, that's <span class="text-accent">21%</span> of the total fortune supply.
 			</div>
 		</div>
-	</div>
+	</div> -->
 </div>

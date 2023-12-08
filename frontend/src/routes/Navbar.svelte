@@ -1,6 +1,6 @@
 <script>
 	import Wallet from '$lib/components/Wallet.svelte';
-	import { Dices, Clover, Landmark, ListOrdered } from 'lucide-svelte';
+	import { Dices, Clover, Sparkles, ListOrdered } from 'lucide-svelte';
 </script>
 
 <div class="navbar bg-base-300">
@@ -10,10 +10,10 @@
 	<div class="navbar-center">
 		<ul class="menu menu-horizontal z-50">
 			<li>
-				<a href="/" class="tooltip tooltip-bottom" data-tip="roll"><Clover /></a>
+				<a href="/stats" class="tooltip tooltip-bottom" data-tip="stats"><Sparkles /></a>
 			</li>
 			<li>
-				<a href="/hoard" class="tooltip tooltip-bottom" data-tip="hoard"><Landmark /></a>
+				<a href="/" class="tooltip tooltip-bottom" data-tip="roll"><Clover /></a>
 			</li>
 			<li>
 				<a href="/leaderboard" class="tooltip tooltip-bottom" data-tip="leaderboard"

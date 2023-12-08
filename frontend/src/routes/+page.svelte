@@ -12,25 +12,16 @@
 		DICE_PER_SECOND,
 		PRECISION
 	} from '$lib/constants/param';
-	import {
-		getGameStart,
-		getGrabbening,
-		getGrabbeningIndex,
-		getGrabbeningRewardsInfo,
-		getPlayerGrabbening,
-		getPotBalance
-	} from '$lib/queries/game';
+	import { getGameStart, getGrabbening, getGrabbeningIndex } from '$lib/queries/game';
 	import { formatUnits } from 'viem';
 	import { watchDiceLand } from '$lib/subscriptions/roll';
 	import { rollFor } from '$lib/mutations/roll';
-	import { onMount } from 'svelte';
 	import { breakDownTimeLeft } from '$lib/utils/time';
 	import { splitAndRandomize } from '$lib/utils/math';
-	import { formatRewardGroups } from '$lib/utils/format';
+	import { nowSeconds } from '$lib/stores/time';
+	import GrabInfo from './GrabInfo.svelte';
 
-	const distributionColors = ['#ef476f', '#ffd166', '#06d6a0', '#118ab2'];
 	const ONE = PRECISION;
-	const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 	const client = useQueryClient();
 	const gameStart = createQuery({
 		queryKey: ['game-start'],
@@ -40,10 +31,6 @@
 		queryKey: ['grabbening-index'],
 		queryFn: getGrabbeningIndex
 	});
-	const potBalance = createQuery({
-		queryKey: ['pot-balance'],
-		queryFn: getPotBalance
-	});
 
 	let dice1: number | null = null;
 	let dice2: number | null = null;
@@ -51,25 +38,9 @@
 		($page.url.searchParams.get('roll-action') as any) ?? undefined;
 	let multiplyStake = 6;
 	let unwatchDiceLand: () => void;
-	let interval: NodeJS.Timeout;
 	let secondsToNextRoll = 0;
 	let rollsRemaining = 0n;
-	let now = BigInt(Math.floor(Date.now() / 1000));
 
-	$: playerGrabbening = createQuery({
-		queryKey: ['player-grabbening', $account?.address, $grabbeningIndex.data],
-		queryFn: async () => {
-			if (!$account?.address) return null;
-			if ($grabbeningIndex.data === undefined) return null;
-			if (!$grabbeningRewards.data) return null;
-
-			return await getPlayerGrabbening(
-				$grabbeningIndex.data,
-				$account.address,
-				$grabbeningRewards.data.rollsToRewards
-			);
-		}
-	});
 	$: grabbening = createQuery({
 		queryKey: ['grabbening', $grabbeningIndex.data],
 		queryFn: async () => {
@@ -77,25 +48,10 @@
 			return await getGrabbening($grabbeningIndex.data);
 		}
 	});
-	$: grabbeningRewards = createQuery({
-		queryKey: ['grabbening-rewards', $grabbening.data],
-		queryFn: async () => {
-			if (!$grabbening.data) return null;
-			if ($grabbening.data[0] === 0n) return null;
-			if ($grabbeningIndex.data === undefined) return null;
-
-			return await getGrabbeningRewardsInfo($grabbeningIndex.data);
-		}
-	});
-	$: grabbeningFee = formatUnits($grabbening.data?.[2] ?? 0n, 4);
-	$: grabbeningRewardGroups = $grabbeningRewards.data
-		? formatRewardGroups(
-				$grabbeningRewards.data.rollsToRewards,
-				$grabbeningRewards.data.rewardGroups
-		  )
-		: [];
 	$: grabEnabled =
-		($grabbening.data && $grabbening.data[0] > 0n && now < $grabbening.data[1]) ?? false;
+		($grabbening.data && $grabbening.data[0] > 0n && $nowSeconds < $grabbening.data[1]) ?? false;
+	$: grabbeningFee = formatUnits($grabbening.data?.[2] ?? 0n, 4);
+
 	$: playerInfo = createQuery({
 		queryKey: ['player-info', $account?.address],
 		queryFn: async () => {
@@ -115,7 +71,7 @@
 			    : 'select a roll action.';
 	$: if ($gameStart.data && $playerInfo.data)
 		rollsRemaining = calculateRollsRemaining({
-			now,
+			now: $nowSeconds,
 			gameStart: $gameStart.data,
 			playerDeposit: $playerInfo.data[1],
 			lastRollTimestamp: $playerInfo.data[3],
@@ -172,28 +128,6 @@
 		return secondsRemaining;
 	};
 
-	const calculatePotentialWinnings = ({
-		playerRoll,
-		potBalance,
-		rewardGroups,
-		rollTally,
-		rollsToRewards
-	}: {
-		potBalance: bigint;
-		playerRoll: bigint;
-		rollTally: bigint;
-		rollsToRewards: bigint[];
-		rewardGroups: bigint[];
-	}) => {
-		if (rollTally === 0n) return 0;
-		const rewardsGroupIndex = Number(rollsToRewards[Number(playerRoll) - 1]);
-		const rewardShare = rewardGroups[rewardsGroupIndex];
-		const rewards = parseFloat(
-			formatUnits((potBalance * rewardShare * PRECISION) / PRECISION / rollTally, 12)
-		);
-		return rewards;
-	};
-
 	const roll = async () => {
 		if (!selectedRollType) return;
 		try {
@@ -235,15 +169,6 @@
 				unwatchDiceLand?.();
 			}
 		});
-
-	onMount(() => {
-		interval = setInterval(() => {
-			now = BigInt(Math.floor(Date.now() / 1000));
-		}, 1000);
-		return () => {
-			clearInterval(interval);
-		};
-	});
 </script>
 
 <div class="h-full grid place-items-center">
@@ -333,46 +258,8 @@
 		</div>
 
 		<!-- seizing info -->
-		<div
-			class="flex flex-col gap-2 w-full relative -top-16"
-			class:invisible={selectedRollType !== 'grab'}
-		>
-			<div class="w-full flex h-6">
-				{#each grabbeningRewardGroups as group, i}
-					{@const rewards = numberFormatter.format(
-						(parseFloat(formatUnits($potBalance.data ?? 0n, 6)) * group.percentage) / 100
-					)}
-					<div
-						class={'h-full tooltip'}
-						class:rounded-l={i === 0}
-						class:rounded-r={i === grabbeningRewardGroups.length - 1}
-						style={`flex: ${group.percentage + 10}; background-color: ${
-							distributionColors[i % distributionColors.length]
-						}`}
-						data-tip={`roll ${
-							group.from === group.to ? group.from : `${group.from} - ${group.to}`
-						} (${rewards} FORTUNE shared)`}
-					></div>
-				{/each}
-			</div>
-			{#if $playerGrabbening.data && $grabbeningRewards.data}
-				{#if $playerGrabbening.data.roll === 0n}
-					<div class="text-center w-full text-sm">roll to earn a share of the hoard.</div>
-				{:else}
-					{@const potentialReward = calculatePotentialWinnings({
-						playerRoll: $playerGrabbening.data.roll,
-						potBalance: $potBalance.data ?? 0n,
-						rewardGroups: $grabbeningRewards.data.rewardGroups,
-						rollsToRewards: $grabbeningRewards.data.rollsToRewards,
-						rollTally: $playerGrabbening.data.tally
-					})}
-					<div class="text-center w-full text-sm">
-						your roll: <span class="text-accent">{$playerGrabbening.data.roll}</span>
-						(<span class="text-accent">{numberFormatter.format(potentialReward)} FORTUNE</span> potential
-						winnings.)
-					</div>
-				{/if}
-			{/if}
-		</div>
+		{#if selectedRollType === 'grab'}
+			<GrabInfo />
+		{/if}
 	</div>
 </div>
