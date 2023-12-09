@@ -30,45 +30,28 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     /*                                   Events                                   */
     /* -------------------------------------------------------------------------- */
 
-    event FortuneGained(
-        address indexed player,
-        uint256 fortuneGained,
-        uint256 timestamp
-    );
-    event FortuneLost(
-        address indexed player,
-        uint256 fortuneLost,
-        uint256 timestamp
-    );
-    event Deposit(address indexed player, uint256 amount, uint256 timestamp);
-    event Withdraw(
-        address indexed player,
-        uint256 amount,
-        string kind,
-        uint256 timestamp
-    );
+    event FortuneGained(address indexed player, uint256 fortuneGained);
+    event FortuneLost(address indexed player, uint256 fortuneLost);
+    event Deposit(address indexed player, uint256 amount);
+    event Withdraw(address indexed player, uint256 amount, string kind);
     event DiceRolled(
         address indexed player,
         RollAction action,
         uint256 multiplyStake,
         uint256 grabbeningIndex,
-        uint256 requestId,
-        uint256 timestamp
+        uint256 addMultiplier,
+        uint256 requestId
     );
     event DiceLanded(
         address indexed player,
         RollAction action,
-        uint256 multiplyStake,
-        uint256 grabbeningIndex,
         uint256 requestId,
-        uint256 diceRoll,
-        uint256 timestamp
+        uint8 result
     );
     event GrabbeningClosed(
         uint256 grabbeningIndex,
         uint256 potBalance,
-        uint256 totalRewards,
-        uint256 timestamp
+        uint256 totalRewards
     );
 
     /* -------------------------------------------------------------------------- */
@@ -99,6 +82,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         address player;
         uint256 multiplyStake;
         uint256 grabbeningIndex;
+        uint256 addMultiplier;
         RollAction action;
     }
 
@@ -193,7 +177,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         STAKED_AVAX.transferFrom(msg.sender, address(this), shareAmount);
 
-        emit Deposit(msg.sender, shareAmount, block.timestamp);
+        emit Deposit(msg.sender, underlyingAmount);
     }
 
     function withdraw() public nonReentrant {
@@ -217,7 +201,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         STAKED_AVAX.transfer(msg.sender, amount);
 
-        emit Withdraw(msg.sender, amount, "withdraw", block.timestamp);
+        emit Withdraw(msg.sender, deposited, "withdraw");
     }
 
     function forfeit() external nonReentrant {
@@ -248,8 +232,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         STAKED_AVAX.transfer(msg.sender, amount);
 
-        emit Withdraw(msg.sender, amount, "forfeit", block.timestamp);
-        emit FortuneLost(msg.sender, fortune, block.timestamp);
+        emit Withdraw(msg.sender, deposited, "forfeit");
+        emit FortuneLost(msg.sender, fortune);
     }
 
     function redeem() external nonReentrant {
@@ -271,12 +255,37 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
 
         totalProtocolRewards += protocolReward;
 
-        emit Withdraw(msg.sender, playerReward, "redeem", block.timestamp);
-        emit FortuneLost(msg.sender, player.fortune, block.timestamp);
+        emit Withdraw(msg.sender, player.deposit, "redeem");
+        emit FortuneLost(msg.sender, player.fortune);
 
         delete players[msg.sender];
 
         STAKED_AVAX.transfer(msg.sender, playerReward);
+    }
+
+    function rollAddMultiple(uint256 multiplier) external returns (uint256) {
+        Player storage player = players[msg.sender];
+
+        uint256 requestId = rollDiceMultiple(player, multiplier);
+
+        rollingDie[requestId] = RollingDice({
+            player: msg.sender,
+            action: RollAction.Add,
+            addMultiplier: multiplier,
+            multiplyStake: 0,
+            grabbeningIndex: 0
+        });
+
+        emit DiceRolled(
+            msg.sender,
+            RollAction.Add,
+            0,
+            0,
+            multiplier,
+            requestId
+        );
+
+        return requestId;
     }
 
     function rollAdd() external returns (uint256) {
@@ -287,18 +296,12 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         rollingDie[requestId] = RollingDice({
             player: msg.sender,
             action: RollAction.Add,
+            addMultiplier: 0,
             multiplyStake: 0,
             grabbeningIndex: 0
         });
 
-        emit DiceRolled(
-            msg.sender,
-            RollAction.Add,
-            0,
-            0,
-            requestId,
-            block.timestamp
-        );
+        emit DiceRolled(msg.sender, RollAction.Add, 0, 0, 0, requestId);
 
         return requestId;
     }
@@ -313,6 +316,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         rollingDie[requestId] = RollingDice({
             player: msg.sender,
             action: RollAction.Multiply,
+            addMultiplier: 0,
             multiplyStake: stakeModulus,
             grabbeningIndex: 0
         });
@@ -322,8 +326,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             RollAction.Multiply,
             stakeModulus,
             0,
-            requestId,
-            block.timestamp
+            0,
+            requestId
         );
 
         return requestId;
@@ -355,6 +359,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         rollingDie[requestId] = RollingDice({
             player: msg.sender,
             action: RollAction.Grab,
+            addMultiplier: 0,
             multiplyStake: 0,
             grabbeningIndex: grabbeningIndex
         });
@@ -364,8 +369,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             RollAction.Grab,
             0,
             grabbeningIndex,
-            requestId,
-            block.timestamp
+            0,
+            requestId
         );
 
         return requestId;
@@ -396,12 +401,7 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         potBalance -= totalRewards;
         totalFortune += totalRewards;
 
-        emit GrabbeningClosed(
-            grabbeningIndex,
-            potBalance,
-            totalRewards,
-            block.timestamp
-        );
+        emit GrabbeningClosed(grabbeningIndex, potBalance, totalRewards);
 
         grabbeningIndex += 1;
     }
@@ -538,6 +538,40 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         return (playerReward - protocolReward, protocolReward);
     }
 
+    function rollDiceMultiple(
+        Player storage player,
+        uint256 multiplier
+    ) internal returns (uint256) {
+        require(!player.hasPendingRoll, "Must not have pending roll");
+        require(player.deposit > 0, "Must have a deposit");
+        require(
+            block.timestamp >= gameStart && block.timestamp <= gameEnd,
+            "Must be during game"
+        );
+
+        updateDiceRolls(player);
+
+        require(
+            player.diceRollsRemaining >= multiplier * PRECISION,
+            "Must have dice rolls remaining"
+        );
+
+        outstandingRolls += 1;
+
+        player.diceRollsRemaining -= (multiplier * PRECISION);
+        player.hasPendingRoll = true;
+
+        uint256 requestId = COORDINATOR.requestRandomWords(
+            KEY_HASH,
+            SUBSCRIPTION_ID,
+            3,
+            100_000,
+            1
+        );
+
+        return requestId;
+    }
+
     function rollDice(Player storage player) internal returns (uint256) {
         require(!player.hasPendingRoll, "Must not have pending roll");
         require(player.deposit > 0, "Must have a deposit");
@@ -633,7 +667,11 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         uint256 diceRoll = (randomWords[0] % DICE_SIDES) + 1;
 
         if (rollingDice.action == RollAction.Add) {
-            finalizeAddRoll(diceRoll, player);
+            uint256 newDiceRoll = diceRoll;
+            if (rollingDice.addMultiplier > 0) {
+                newDiceRoll *= rollingDice.addMultiplier;
+            }
+            finalizeAddRoll(newDiceRoll, player);
         } else if (rollingDice.action == RollAction.Multiply) {
             finalizeMultiplyRoll(
                 diceRoll,
@@ -650,13 +688,10 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
         emit DiceLanded(
             rollingDice.player,
             rollingDice.action,
-            rollingDice.multiplyStake,
-            rollingDice.grabbeningIndex,
             requestId,
-            diceRoll,
-            block.timestamp
+            uint8(diceRoll)
         );
-				
+
         delete rollingDie[requestId];
 
         outstandingRolls -= 1;

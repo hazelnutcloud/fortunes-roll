@@ -151,8 +151,8 @@
 				({ args: { player } }) =>
 					player && player.toLowerCase() === $account?.address?.toLowerCase()
 			);
-			if (playersDice && playersDice.args.diceRoll) {
-				const point = Number(playersDice.args.diceRoll);
+			if (playersDice && playersDice.args.result) {
+				const point = Number(playersDice.args.result);
 				console.log('point', point);
 				if (point === 1) {
 					dice1 = 1;

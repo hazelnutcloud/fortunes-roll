@@ -19,30 +19,9 @@ export const FORTUNES_ABI = [
 	},
 	{
 		type: 'function',
-		name: 'FORFEIT',
-		inputs: [],
-		outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
-		stateMutability: 'view'
-	},
-	{
-		type: 'function',
-		name: 'REDEEM',
-		inputs: [],
-		outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
-		stateMutability: 'view'
-	},
-	{
-		type: 'function',
 		name: 'STAKED_AVAX',
 		inputs: [],
 		outputs: [{ name: '', type: 'address', internalType: 'contract IStakedAvax' }],
-		stateMutability: 'view'
-	},
-	{
-		type: 'function',
-		name: 'WITHDRAW',
-		inputs: [],
-		outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
 		stateMutability: 'view'
 	},
 	{
@@ -237,6 +216,13 @@ export const FORTUNES_ABI = [
 	},
 	{
 		type: 'function',
+		name: 'rollAddMultiple',
+		inputs: [{ name: 'multiplier', type: 'uint256', internalType: 'uint256' }],
+		outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
+		stateMutability: 'nonpayable'
+	},
+	{
+		type: 'function',
 		name: 'rollGrab',
 		inputs: [],
 		outputs: [{ name: '', type: 'uint256', internalType: 'uint256' }],
@@ -257,6 +243,7 @@ export const FORTUNES_ABI = [
 			{ name: 'player', type: 'address', internalType: 'address' },
 			{ name: 'multiplyStake', type: 'uint256', internalType: 'uint256' },
 			{ name: 'grabbeningIndex', type: 'uint256', internalType: 'uint256' },
+			{ name: 'addMultiplier', type: 'uint256', internalType: 'uint256' },
 			{ name: 'action', type: 'uint8', internalType: 'enum Fortunes.RollAction' }
 		],
 		stateMutability: 'view'
@@ -309,8 +296,7 @@ export const FORTUNES_ABI = [
 		name: 'Deposit',
 		inputs: [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
-			{ name: 'amount', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'amount', type: 'uint256', indexed: false, internalType: 'uint256' }
 		],
 		anonymous: false
 	},
@@ -320,11 +306,8 @@ export const FORTUNES_ABI = [
 		inputs: [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
 			{ name: 'action', type: 'uint8', indexed: false, internalType: 'enum Fortunes.RollAction' },
-			{ name: 'multiplyStake', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'grabbeningIndex', type: 'uint256', indexed: false, internalType: 'uint256' },
 			{ name: 'requestId', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'diceRoll', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'result', type: 'uint8', indexed: false, internalType: 'uint8' }
 		],
 		anonymous: false
 	},
@@ -336,8 +319,8 @@ export const FORTUNES_ABI = [
 			{ name: 'action', type: 'uint8', indexed: false, internalType: 'enum Fortunes.RollAction' },
 			{ name: 'multiplyStake', type: 'uint256', indexed: false, internalType: 'uint256' },
 			{ name: 'grabbeningIndex', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'requestId', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'addMultiplier', type: 'uint256', indexed: false, internalType: 'uint256' },
+			{ name: 'requestId', type: 'uint256', indexed: false, internalType: 'uint256' }
 		],
 		anonymous: false
 	},
@@ -346,8 +329,7 @@ export const FORTUNES_ABI = [
 		name: 'FortuneGained',
 		inputs: [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
-			{ name: 'fortuneGained', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'fortuneGained', type: 'uint256', indexed: false, internalType: 'uint256' }
 		],
 		anonymous: false
 	},
@@ -356,8 +338,7 @@ export const FORTUNES_ABI = [
 		name: 'FortuneLost',
 		inputs: [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
-			{ name: 'fortuneLost', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'fortuneLost', type: 'uint256', indexed: false, internalType: 'uint256' }
 		],
 		anonymous: false
 	},
@@ -367,8 +348,7 @@ export const FORTUNES_ABI = [
 		inputs: [
 			{ name: 'grabbeningIndex', type: 'uint256', indexed: false, internalType: 'uint256' },
 			{ name: 'potBalance', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'totalRewards', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'totalRewards', type: 'uint256', indexed: false, internalType: 'uint256' }
 		],
 		anonymous: false
 	},
@@ -387,8 +367,7 @@ export const FORTUNES_ABI = [
 		inputs: [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
 			{ name: 'amount', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'kind', type: 'bytes32', indexed: false, internalType: 'bytes32' },
-			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'kind', type: 'string', indexed: false, internalType: 'string' }
 		],
 		anonymous: false
 	},

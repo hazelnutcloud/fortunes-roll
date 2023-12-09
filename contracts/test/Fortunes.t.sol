@@ -536,6 +536,7 @@ contract FortunesTest is Test {
             address player,
             uint256 multiplyStake,
             uint256 grabbeningIndex,
+            ,
             Fortunes.RollAction action
         ) = fortunes.rollingDie(requestId);
 
@@ -559,7 +560,67 @@ contract FortunesTest is Test {
         assertEq(fortunes.totalFortune(), expectedFortune);
         assert(!hasPendingRoll);
 
-        (player, , , ) = fortunes.rollingDie(requestId);
+        (player, , , , ) = fortunes.rollingDie(requestId);
+        assertEq(player, address(0));
+    }
+    function test_RollAddMultiple(uint256 randomNumber) external {
+        stdstore
+            .target(address(fortunes))
+            .sig("players(address)")
+            .with_key(address(this))
+            .depth(1)
+            .checked_write(100 * 1e18);
+        vm.warp(gameStart);
+        mockVrfCoordinatorRequestRandomWords(0);
+
+        uint256 requestId = fortunes.rollAddMultiple(5);
+
+        (
+            uint256 fortune,
+            ,
+            uint256 diceRollsRemaining,
+            uint256 lastDiceRollTimestamp,
+            bool hasPendingRoll
+        ) = fortunes.players(address(this));
+
+        assertEq(diceRollsRemaining, baseDiceRolls - (1 * PRECISION * 5));
+        assertEq(lastDiceRollTimestamp, gameStart);
+        assertEq(requestId, 0);
+        assert(hasPendingRoll);
+        assertEq(fortunes.outstandingRolls(), 1);
+        assertEq(fortunes.totalFortune(), 0);
+        assertEq(fortune, 0);
+
+        (
+            address player,
+            uint256 multiplyStake,
+            uint256 grabbeningIndex,
+            uint256 addMultiple,
+            Fortunes.RollAction action
+        ) = fortunes.rollingDie(requestId);
+
+        assertEq(player, address(this));
+        assertEq(multiplyStake, 0);
+        assertEq(grabbeningIndex, 0);
+				assertEq(addMultiple, 5);
+        assertEq(uint8(action), uint8(Fortunes.RollAction.Add));
+
+        vm.roll(block.number + 1); // simulate VRFCoordinator callback at next block. Not really necessary, but makes the test more realistic
+        vm.prank(vrfCoordinator);
+        uint256[] memory randomWords = new uint256[](1);
+        randomWords[0] = randomNumber;
+        fortunes.rawFulfillRandomWords(requestId, randomWords);
+
+        (fortune, , , , hasPendingRoll) = fortunes.players(address(this));
+        uint256 expectedFortune = ((randomNumber % 12) + 1) *
+            additionMultiplier * 5;
+
+        assertEq(fortune, expectedFortune);
+        assertEq(fortunes.outstandingRolls(), 0);
+        assertEq(fortunes.totalFortune(), expectedFortune);
+        assert(!hasPendingRoll);
+
+        (player, , , , ) = fortunes.rollingDie(requestId);
         assertEq(player, address(0));
     }
 
@@ -604,6 +665,7 @@ contract FortunesTest is Test {
             address player,
             uint256 multiplyStake,
             uint256 grabbeningIndex,
+            ,
             Fortunes.RollAction action
         ) = fortunes.rollingDie(requestId);
 
@@ -632,7 +694,7 @@ contract FortunesTest is Test {
         assertEq(fortunes.totalFortune(), expectedFortune);
         assert(!hasPendingRoll);
 
-        (player, , , ) = fortunes.rollingDie(requestId);
+        (player, , , , ) = fortunes.rollingDie(requestId);
         assertEq(player, address(0));
     }
 
@@ -885,6 +947,7 @@ contract FortunesTest is Test {
             address player,
             uint256 multiplyStake,
             uint256 grabbeningIndex,
+            ,
             Fortunes.RollAction action
         ) = fortunes.rollingDie(requestId);
 
@@ -909,7 +972,7 @@ contract FortunesTest is Test {
         );
         assert(!hasPendingRoll);
 
-        (player, , , ) = fortunes.rollingDie(requestId);
+        (player, , , , ) = fortunes.rollingDie(requestId);
         assertEq(player, address(0));
 
         uint256 grabbeningPlayerRoll = fortunes.grabbeningRolls(

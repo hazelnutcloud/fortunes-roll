@@ -24,7 +24,7 @@ export const manifest = new Manifest("fortunes-roll")
         abi: FORTUNES_ABI,
         name: "Fortunes",
         sources: {
-          "0xFbbA398E72ac8f7F794e80b70F3b102673c4DE8c": 38719698n,
+          "0x8dD38f0f21A4d88e52BE1fEB662e530144acAC97": 38818574n,
         },
         eventHandlers: {
           Deposit: onDeposit,
