@@ -1,6 +1,7 @@
 {
   "name": "fortunes-backend",
-  "module": "src/index.ts",
+  "module": "./src/server.ts",
+	"types": "./src/server.ts",
   "type": "module",
   "devDependencies": {
     "bun-types": "latest",
@@ -16,13 +17,19 @@
     "arkiver": "^1.0.2",
     "drizzle-orm": "^0.29.1",
     "elysia": "^0.7.30",
+    "elysia-rate-limit": "^2.0.1",
     "postgres": "^3.4.3",
+    "ts-pattern": "^5.0.6",
     "viem": "^1.19.11"
   },
   "scripts": {
     "generate": "npx drizzle-kit generate:pg",
-    "server": "bun run src/server.ts",
+    "server": "bun run --watch src/server.ts",
     "arkiver": "bun run src/arkiver.ts",
-    "studio": "drizzle-kit studio"
+    "studio": "drizzle-kit studio",
+    "reset": "docker-compose down -v",
+    "start": "docker-compose up -d",
+    "dbonly": "docker run --rm -d --name fortunes-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=arkiver postgres",
+    "dbonly:stop": "docker stop fortunes-db"
   }
 }

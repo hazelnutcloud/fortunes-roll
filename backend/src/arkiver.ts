@@ -19,16 +19,16 @@ if (!postgresUrl) throw new Error("POSTGRES_URL not set.");
 
 const logger = pino({
   transport: { target: "pino-pretty" },
-  level: "debug",
+  level: "info",
 });
 
-const sqlite = bsqlDrizzle(new Database("arkiver.sqlite"), {
+const sqlite = bsqlDrizzle(new Database("db/arkiver.sqlite"), {
   schema: { arkiveMetadata, chainMetadata, childSource },
 });
 const dbProvider = new BunSqliteProvider({ db: sqlite, logger });
 
 const migrateDb = pgDrizzle(postgres(postgresUrl, { max: 1 }));
-await migrate(migrateDb, { migrationsFolder: "./drizzle" });
+await migrate(migrateDb, { migrationsFolder: "./db" });
 
 
 const pgDb = pgDrizzle(postgres(postgresUrl), {

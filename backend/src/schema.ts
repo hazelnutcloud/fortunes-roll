@@ -1,4 +1,4 @@
-import { pgTable, text, real, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, real, integer, timestamp } from "drizzle-orm/pg-core";
 import crypto from "node:crypto";
 
 export const player = pgTable("player", {
@@ -10,5 +10,5 @@ export const player = pgTable("player", {
   score: real("score").default(0),
   deposit: real("deposit").default(0),
   rolls: integer("rolls").default(0),
-  rollsRemaining: integer("rolls_remaining").default(0),
+  lastRollTimestamp: timestamp("last_roll_timestamp", { mode: "date" }),
 });

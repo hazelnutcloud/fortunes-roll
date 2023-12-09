@@ -11,5 +11,5 @@ export default defineConfig({
   dbCredentials: {
     connectionString,
   },
-	out: "./drizzle"
+	out: "./db"
 });
