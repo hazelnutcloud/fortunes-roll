@@ -1,0 +1,87 @@
+type Deposit @entity(immutable: true) {
+  id: Bytes!
+  player: Bytes! # address
+  amount: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DiceLanded @entity(immutable: true) {
+  id: Bytes!
+  player: Bytes! # address
+  action: Int! # uint8
+  multiplyStake: BigInt! # uint256
+  grabbeningIndex: BigInt! # uint256
+  requestId: BigInt! # uint256
+  diceRoll: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type DiceRolled @entity(immutable: true) {
+  id: Bytes!
+  player: Bytes! # address
+  action: Int! # uint8
+  multiplyStake: BigInt! # uint256
+  grabbeningIndex: BigInt! # uint256
+  requestId: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type FortuneGained @entity(immutable: true) {
+  id: Bytes!
+  player: Bytes! # address
+  fortuneGained: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type FortuneLost @entity(immutable: true) {
+  id: Bytes!
+  player: Bytes! # address
+  fortuneLost: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type GrabbeningClosed @entity(immutable: true) {
+  id: Bytes!
+  grabbeningIndex: BigInt! # uint256
+  potBalance: BigInt! # uint256
+  totalRewards: BigInt! # uint256
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type OwnershipTransferred @entity(immutable: true) {
+  id: Bytes!
+  user: Bytes! # address
+  newOwner: Bytes! # address
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Withdraw @entity(immutable: true) {
+  id: Bytes!
+  player: Bytes! # address
+  amount: BigInt! # uint256
+  kind: String! # string
+  timestamp: BigInt! # uint256
+  blockNumber: BigInt!
+  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}

@@ -1,0 +1,45 @@
+specVersion: 0.0.5
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Fortunes
+    network: avalanche
+    source:
+      address: "0xFbbA398E72ac8f7F794e80b70F3b102673c4DE8c"
+      abi: Fortunes
+      startBlock: 38719698
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Deposit
+        - DiceLanded
+        - DiceRolled
+        - FortuneGained
+        - FortuneLost
+        - GrabbeningClosed
+        - OwnershipTransferred
+        - Withdraw
+      abis:
+        - name: Fortunes
+          file: ./abis/Fortunes.json
+      eventHandlers:
+        - event: Deposit(indexed address,uint256,uint256)
+          handler: handleDeposit
+        - event: DiceLanded(indexed address,uint8,uint256,uint256,uint256,uint256,uint256)
+          handler: handleDiceLanded
+        - event: DiceRolled(indexed address,uint8,uint256,uint256,uint256,uint256)
+          handler: handleDiceRolled
+        - event: FortuneGained(indexed address,uint256,uint256)
+          handler: handleFortuneGained
+        - event: FortuneLost(indexed address,uint256,uint256)
+          handler: handleFortuneLost
+        - event: GrabbeningClosed(uint256,uint256,uint256,uint256)
+          handler: handleGrabbeningClosed
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Withdraw(indexed address,uint256,string,uint256)
+          handler: handleWithdraw
+      file: ./src/fortunes.ts
