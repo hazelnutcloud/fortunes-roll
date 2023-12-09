@@ -1,0 +1,27 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1702108480282,
+      "tag": "0000_puzzling_prodigy",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1702110621247,
+      "tag": "0001_numerous_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1702110776789,
+      "tag": "0002_lyrical_sabretooth",
+      "breakpoints": true
+    }
+  ]
+}
