@@ -2,9 +2,9 @@ import { prepareWriteContract, waitForTransaction, writeContract } from '@wagmi/
 import { FORTUNES_ABI } from '../abis/fortunes';
 import { FORTUNES_ADDRESS } from '../constants/contract-addresses';
 
-export type RollParams = { type: string; multiplyStake?: bigint };
+export type RollParams = { type: string; multiplyStake?: bigint; addMultiplier: number };
 
-export async function rollFor({ type, multiplyStake }: RollParams) {
+export async function rollFor({ type, multiplyStake, addMultiplier }: RollParams) {
 	let config;
 
 	const params = {
@@ -13,10 +13,18 @@ export async function rollFor({ type, multiplyStake }: RollParams) {
 	} as const;
 
 	if (type === 'add') {
-		config = await prepareWriteContract({
-			...params,
-			functionName: 'rollAdd'
-		});
+		if (addMultiplier > 1) {
+			config = await prepareWriteContract({
+				...params,
+				functionName: 'rollAddMultiple',
+				args: [BigInt(addMultiplier)]
+			});
+		} else {
+			config = await prepareWriteContract({
+				...params,
+				functionName: 'rollAdd'
+			});
+		}
 	} else if (type === 'multiply') {
 		if (!multiplyStake) multiplyStake = 1n;
 		config = await prepareWriteContract({

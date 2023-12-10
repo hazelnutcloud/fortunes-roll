@@ -186,7 +186,7 @@
 		{/if}
 		<div class="stat-actions flex gap-2">
 			<button
-				class="btn btn-sm btn-secondary ring ring-secondary ring-offset-2 ring-offset-base-200"
+				class="btn btn-sm btn-secondary ring ring-secondary ring-offset-2 ring-offset-base-200 text-bold"
 				on:click={openDeposit}>deposit</button
 			>
 			<button class="btn btn-sm btn-ghost" on:click={withdraw}>withdraw</button>

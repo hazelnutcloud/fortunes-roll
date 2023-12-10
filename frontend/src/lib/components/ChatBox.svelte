@@ -15,7 +15,7 @@
 	let messages: { id: string; msg: string }[] = [
 		{
 			id: '🔮 Fortune Master',
-			msg: "Welcome to Fortune's Roll! Feelin' lucky?"
+			msg: "Welcome to Fortune's Roll! Feelin' lucky? 🍀"
 		}
 	];
 

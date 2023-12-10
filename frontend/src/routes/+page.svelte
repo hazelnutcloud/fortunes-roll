@@ -20,6 +20,7 @@
 	import { splitAndRandomize } from '$lib/utils/math';
 	import { nowSeconds } from '$lib/stores/time';
 	import GrabInfo from './GrabRewards.svelte';
+	import { numberFormatter } from '$lib/utils/format';
 
 	const ONE = PRECISION;
 	const client = useQueryClient();
@@ -37,6 +38,7 @@
 	let selectedRollType: 'add' | 'multiply' | 'grab' | undefined =
 		($page.url.searchParams.get('roll-action') as any) ?? undefined;
 	let multiplyStake = 6;
+	let addMultiplier = 1;
 	let unwatchDiceLand: () => void;
 	let secondsToNextRoll = 0;
 	let rollsRemaining = 0n;
@@ -65,7 +67,7 @@
 					multiplyStake
 			  )} of your fortune. if you roll at or above ${multiplyStake}, you will win the amount you betted, otherwise you will lose it.`
 			: selectedRollType === 'add'
-			  ? 'you will win 100 fortune for each point you roll. i.e. if you roll 6, you will win 600 fortune.'
+			  ? 'you will win 100 fortune for each point you roll. i.e. if you roll 6, you will win 600 fortune. multiply your winnings by consuming multiple rolls at once.'
 			  : selectedRollType === 'grab'
 			    ? `you will pay ${grabbeningFee}% of your fortune for a chance to win a portion of the hoard according to your roll.`
 			    : 'select a roll action.';
@@ -90,6 +92,10 @@
 
 	const getStakePercentage = (roll: number) => {
 		return `${((roll * 100) / 12).toFixed(0)}%`;
+	};
+
+	const getFortuneFraction = (roll: number, fortune: bigint) => {
+		return numberFormatter.format(parseFloat(formatUnits((fortune * BigInt(roll)) / 12n, 6)));
 	};
 
 	const calculateRollsRemaining = ({
@@ -135,7 +141,8 @@
 			dice2 = -1;
 			await rollFor({
 				type: selectedRollType,
-				multiplyStake: BigInt(multiplyStake)
+				multiplyStake: BigInt(multiplyStake),
+				addMultiplier
 			});
 			unwatchDiceLand = playerWatchDiceLand();
 		} catch (e) {
@@ -167,6 +174,7 @@
 					queryKey: ['player-grabbening', $account?.address, $grabbeningIndex.data]
 				});
 				unwatchDiceLand?.();
+				addMultiplier = 1;
 			}
 		});
 </script>
@@ -211,8 +219,8 @@
 				<option value="grab" disabled={!grabEnabled}><Grab />Grab</option>
 			</select>
 			<div class="indicator">
-				<span class="indicator-item badge badge-accent"
-					>x{Math.floor(parseFloat(formatUnits(rollsRemaining, 6)))}</span
+				<span class="indicator-item indicator-center indicator-bottom badge badge-primary font-bold"
+					>{Math.floor(parseFloat(formatUnits(rollsRemaining, 6)))}</span
 				>
 				<button
 					class="btn btn-secondary shadow ring-secondary ring-offset-base-100 ring-offset-2 tooltip tooltip-right"
@@ -239,7 +247,31 @@
 			</div>
 		{/if}
 
-		{#if selectedRollType !== 'multiply' && selectedRollType !== 'grab'}
+		<!-- add slider -->
+		{#if selectedRollType === 'add'}
+			{@const rollsRemainingParsed = Math.floor(Number(formatUnits(rollsRemaining, 6)))}
+			<div class="flex flex-col gap-2 w-full h-16">
+				<input
+					type="range"
+					min="1"
+					max={rollsRemainingParsed}
+					bind:value={addMultiplier}
+					class="range range-accent w-full"
+					step="1"
+					disabled={selectedRollType !== 'add'}
+				/>
+				<span
+					class="w-full text-center tooltip tooltip-top"
+					data-tip={`consume ${addMultiplier} dice roll${
+						addMultiplier > 1 ? 's' : ''
+					} to multiply your winnings ${addMultiplier}x. for when you want to spend multiple rolls at once.`}
+				>
+					Roll multiplier: <span class="text-accent">x{addMultiplier}</span></span
+				>
+			</div>
+		{/if}
+
+		{#if selectedRollType !== 'multiply' && selectedRollType !== 'grab' && selectedRollType !== 'add'}
 			<div class="h-16"></div>
 		{/if}
 
@@ -257,7 +289,13 @@
 				/>
 				<div class="w-full flex justify-between text-xs px-2">
 					{#each Array(12) as _, i}
-						<span class="tooltip font-mono" data-tip={getStakePercentage(i + 1)}>{i + 1}</span>
+						{@const winnings = getFortuneFraction(i + 1, $playerInfo.data?.[0] ?? 0n)}
+						<span
+							class="tooltip"
+							data-tip={i === 1
+								? `roll 12, win ${winnings} FORTUNE`
+								: `roll more than or equal ${i + 1}, win ${winnings} FORTUNE`}>{i + 1}</span
+						>
 					{/each}
 				</div>
 			</div>
