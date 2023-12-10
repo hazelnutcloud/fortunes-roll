@@ -7,11 +7,12 @@
 	import { formatUnits } from 'viem';
 	import { DEPOSIT_FACTOR, DICE_PER_SECOND, PRECISION_PLACES } from '$lib/constants/param';
 	import { getGameEnd, getGameStart, getTotalDeposited, getTotalFortune } from '$lib/queries/game';
-	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
+	// import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
 	import { nowSeconds } from '$lib/stores/time';
 	import { prepareWriteContract, waitForTransaction, writeContract } from '@wagmi/core';
 	import { FORTUNES_ABI } from '$lib/abis/fortunes';
 	import { FORTUNES_ADDRESS } from '$lib/constants/contract-addresses';
+	import { getPlayerPositionOnLeaderboard } from '$lib/queries/leaderboard';
 
 	const locale = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
 	const client = useQueryClient();

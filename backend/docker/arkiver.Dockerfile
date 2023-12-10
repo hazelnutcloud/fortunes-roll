@@ -4,6 +4,8 @@
 ARG BUN_VERSION=1.0.15
 FROM oven/bun:${BUN_VERSION} as base
 
+LABEL fly_launch_runtime="Bun"
+
 # Bun app lives here
 WORKDIR /app
 
@@ -19,17 +21,18 @@ RUN apt-get update -qq && \
     apt-get install -y build-essential pkg-config python-is-python3
 
 # Install node modules
-COPY --link . .
+COPY --link bun.lockb package.json ./
 RUN bun install --ci
+
+# Copy application code
+COPY --link . .
+
 
 # Final stage for app image
 FROM base
 
 # Copy built application
 COPY --from=build /app /app
-
-# cd into the backend directory
-WORKDIR /app/backend
 
 # Start the server by default, this can be overwritten at runtime
 CMD [ "bun", "run", "arkiver" ]

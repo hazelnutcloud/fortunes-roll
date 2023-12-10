@@ -1,9 +1,10 @@
 {
   "name": "fortunes-backend",
   "module": "./src/server.ts",
-	"types": "./src/server.ts",
+  "types": "./src/server.ts",
   "type": "module",
   "devDependencies": {
+    "@flydotio/dockerfile": "^0.4.11",
     "bun-types": "latest",
     "drizzle-kit": "^0.20.6",
     "pino-pretty": "^10.2.3"
@@ -14,7 +15,7 @@
   "dependencies": {
     "@elysiajs/cors": "^0.7.2",
     "@elysiajs/swagger": "^0.7.4",
-    "arkiver": "^1.0.2",
+    "arkiver": "^1.0.3",
     "drizzle-orm": "^0.29.1",
     "elysia": "^0.7.30",
     "elysia-rate-limit": "^2.0.1",

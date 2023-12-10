@@ -14,7 +14,7 @@ export const onDiceRolled = eventHandler(
     const players: Record<string, typeof schema.player.$inferInsert> = {};
 
     for (const roll of ctx.events) {
-      const { player } = roll.args;
+      const { player, action, addMultiplier, requestId } = roll.args;
 
       const timestamp = await ctx.client.getBlockTimestamp({
         blockNumber: roll.blockNumber,

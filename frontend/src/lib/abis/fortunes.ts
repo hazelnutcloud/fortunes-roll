@@ -307,6 +307,9 @@ export const FORTUNES_ABI = [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
 			{ name: 'action', type: 'uint8', indexed: false, internalType: 'enum Fortunes.RollAction' },
 			{ name: 'requestId', type: 'uint256', indexed: false, internalType: 'uint256' },
+			{ name: 'multiplyStake', type: 'uint256', indexed: false, internalType: 'uint256' },
+			{ name: 'grabbeningIndex', type: 'uint256', indexed: false, internalType: 'uint256' },
+			{ name: 'addMultiplier', type: 'uint256', indexed: false, internalType: 'uint256' },
 			{ name: 'result', type: 'uint8', indexed: false, internalType: 'uint8' }
 		],
 		anonymous: false
@@ -317,10 +320,8 @@ export const FORTUNES_ABI = [
 		inputs: [
 			{ name: 'player', type: 'address', indexed: true, internalType: 'address' },
 			{ name: 'action', type: 'uint8', indexed: false, internalType: 'enum Fortunes.RollAction' },
-			{ name: 'multiplyStake', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'grabbeningIndex', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'addMultiplier', type: 'uint256', indexed: false, internalType: 'uint256' },
-			{ name: 'requestId', type: 'uint256', indexed: false, internalType: 'uint256' }
+			{ name: 'requestId', type: 'uint256', indexed: false, internalType: 'uint256' },
+			{ name: 'timestamp', type: 'uint256', indexed: false, internalType: 'uint256' }
 		],
 		anonymous: false
 	},

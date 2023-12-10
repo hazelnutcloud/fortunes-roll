@@ -19,7 +19,7 @@ if (!postgresUrl) throw new Error("POSTGRES_URL not set.");
 
 const logger = pino({
   transport: { target: "pino-pretty" },
-  level: "info",
+  level: "debug",
 });
 
 const sqlite = bsqlDrizzle(new Database("db/arkiver.sqlite"), {
