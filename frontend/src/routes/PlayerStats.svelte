@@ -156,7 +156,7 @@
 	};
 </script>
 
-<div class="stats shadow">
+<div class="stats shadow w-full">
 	<div class="stat bg-base-200">
 		<div class="stat-title flex gap-2 items-end">
 			<PiggyBank /><span class="leading-tight">Your Deposit</span>

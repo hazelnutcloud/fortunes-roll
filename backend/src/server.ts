@@ -7,9 +7,12 @@ import * as schema from "./schema.ts";
 import { rateLimit } from "elysia-rate-limit";
 import { match, P } from "ts-pattern";
 import { asc, desc, eq, sql } from "drizzle-orm";
+import { startArkiver } from "./arkiver.ts";
 
-const postgresUrl = process.env["POSTGRES_URL"];
-if (!postgresUrl) throw new Error("POSTGRES_URL not set.");
+const postgresUrl = process.env["DATABASE_URL"];
+if (!postgresUrl) throw new Error("DATABASE_URL not set.");
+
+await startArkiver();
 
 export const app = new Elysia({ prefix: "/v1" })
   .use(cors())
@@ -143,7 +146,7 @@ export const app = new Elysia({ prefix: "/v1" })
       msg: t.String(),
     }),
   })
-  .listen(3000);
+  .listen({ port: 3000, hostname: "0.0.0.0" });
 
 console.log(
   `🚀 Server is running at http://${app.server?.hostname}:${app.server?.port}`

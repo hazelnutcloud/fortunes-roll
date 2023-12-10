@@ -172,7 +172,7 @@
 </script>
 
 <div class="h-full grid place-items-center">
-	<div class="flex flex-col items-center gap-4">
+	<div class="flex w-full flex-col items-center gap-4 max-w-screen-sm">
 		<PlayerStats />
 
 		<!-- dice -->

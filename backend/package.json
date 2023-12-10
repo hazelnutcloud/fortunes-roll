@@ -28,9 +28,7 @@
     "server": "bun run --watch src/server.ts",
     "arkiver": "bun run src/arkiver.ts",
     "studio": "drizzle-kit studio",
-    "reset": "docker-compose down -v",
-    "start": "docker-compose up -d",
-    "dbonly": "docker run --rm -d --name fortunes-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=arkiver postgres",
-    "dbonly:stop": "docker stop fortunes-db"
+    "dbup": "docker run --rm -d --name fortunes-db -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=arkiver postgres",
+    "dbdown": "docker stop fortunes-db"
   }
 }
