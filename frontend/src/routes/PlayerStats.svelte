@@ -45,13 +45,13 @@
 		}
 	});
 
-	$: playerPosition = createQuery<ReturnType<typeof getPlayerPositionOnLeaderboard> | null>({
+	$: playerPosition = createQuery({
 		queryKey: ['player-position', $account?.address],
-		queryFn: () => {
+		queryFn: async () => {
 			if (!$account?.address) {
 				return null;
 			}
-			return getPlayerPositionOnLeaderboard($account.address);
+			return await getPlayerPositionOnLeaderboard($account.address);
 		}
 	});
 

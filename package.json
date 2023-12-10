@@ -1,8 +1,8 @@
 {
-	"name": "root",
-	"private": true,
-	"workspaces": [
-		"frontend",
-		"backend"
-	]
+  "name": "root",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
 }

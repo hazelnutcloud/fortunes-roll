@@ -1,0 +1,82 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: arkiver
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: always
+    volumes:
+      - arkiver-postgres:/var/lib/postgresql/data
+    labels:
+      - "traefik.enable=false"
+
+  arkiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.arkiver
+    environment:
+      POSTGRES_URL: postgres://postgres:postgres@db:5432/arkiver
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - arkiver-sqlite:/app/db
+    restart: always
+    labels:
+      - "traefik.enable=false"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    environment:
+      POSTGRES_URL: postgres://postgres:postgres@db:5432/arkiver
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    labels:
+      - traefik.http.routers.api.rule=Host(`api.fortunes-roll.com`)
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "4000:4000"
+    restart: always
+    labels:
+      - traefik.http.routers.frontend.rule=Host(`fortunes-roll.com`)
+
+  reverse-proxy:
+    # The official v2 Traefik docker image
+    image: traefik:v2.10
+    # Enables the web UI and tells Traefik to listen to docker
+    command: --providers.docker
+    ports:
+      # The HTTP port
+      - "80:80"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: always
+    depends_on:
+      - api
+      - frontend
+
+volumes:
+  arkiver-sqlite:
+    driver: local
+  arkiver-postgres:
+    driver: local
