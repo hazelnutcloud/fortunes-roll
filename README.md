@@ -39,15 +39,17 @@ With the core game logic in place, Fortune's Roll can be extended in many ways a
 - **Gamified Launchpad** - Fortune's Roll can be used as a gamified launchpad for new projects. For example, a new project can launch a game of Fortune's Roll and distribute their tokens to players proportional to their final score. This can be used as a more fun alternative to a traditional airdrop.
 - **Gamified Yield Farming** - Fortune's Roll can be used as a gamified yield farming platform. For example, a protocol can attract capital by gamifying their yield farming program through Fortune's Roll.
 - **Powerups and Rare Items** - Fortune's Roll can be extended to include powerups and rare items that players can use to boost their gameplay. For example, a player can use a powerup to double their score or use a rare item to increase their chances of winning in the Multiply action. Powerups can be obtained randomly thoughout playing the game or bought in the open market.
+- **Zero-loss Game Platform** - Fortune's Roll provides a foundation for building a zero-loss games platform. For example, a new game can be built alongside Fortune's Roll that uses a different game mechanic but still has the same zero-loss property. Players can use the same profile across all games on the platform.
 - **Many More** - The possibilities are endless! Fortune's Roll can be extended in many ways to create a fun and engaging experience for players.
 
 ## Features Roadmap
 
 - [x] Core game logic
-- [ ] Batch actions
+- [x] Batch actions
 - [ ] Player profiles
-- [ ] Collectibles
 - [ ] Referrals
+- [ ] Collectibles
+- [ ] Cosmetics
 - [ ] Separate avalanche subnet
 - [ ] ... 👀
 
@@ -55,6 +57,7 @@ With the core game logic in place, Fortune's Roll can be extended in many ways a
 
 Fortune's Roll is inspired by the following projects:
 
+- [Monopoly Go](https://www.monopolygo.com/)
 - [Blast L2](https://blast.io/en)
 - [PoolTogether](https://pooltogether.com/)
 
