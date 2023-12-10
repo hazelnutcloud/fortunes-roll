@@ -2,11 +2,11 @@
 
 ![Fortune's Roll Banner](banner.png)
 
-**Fortune's Roll** is an asynchronous, zero-loss game of dice where players strategically grow their points through high-risk bets, communal pool gains, and safe point accumulation. It combines elements of chance, strategy, and player interaction.
+**Fortune's Roll** is an asynchronous, zero-loss game of dice that provides the opportunity to multiply potential yield from yield-bearing tokens. Players strategically grow their points through high-risk bets, communal pool gains, and safe point accumulation. It combines elements of chance, strategy, and player interaction.
 
 ## Play Now
 
-The game is currently deployed on the Avalanche C-Chain using sAVAX as the deposit token. You can play it here: [https://fortunes-roll.vercel.app/](https://fortunes-roll.vercel.app/)
+The game is currently deployed on the Avalanche C-Chain using sAVAX as the deposit token. You can play it here: [fortunes-roll.com](https://fortunes-roll.com)
 
 ## How it Works
 
@@ -24,6 +24,10 @@ There are three ways to earn points in Fortune's Roll, each of them involving a 
 3. **Grab** - Points lost by players in the Multiply action are added to the communal pool. Throughout the game, there will be opportunities for players to roll die to grab points from the communal pool at the cost of a portion of their current score. This cost is also added to the communal pool.
    During a Grabbing opening, each die roll is assigned a percentage of the communal pool. At the end of each opening, the communal pool is distributed to players who rolled the die in proportion to the percentage they were assigned. For example, if a player rolls a 3 and is assigned 10% of the communal pool, they will share 10% of the communal pool at the end of the opening with other players who rolled a 3. Charging a percentage of their current score to roll this action means that players with lower scores will benefit more from Grabbing compared to players with higher scores, which can act as a balancing mechanism.
 
+
+Players must decide when and which action to take, weighing potential risks and rewards.
+Observing the communal pool's size and other players' actions adds depth to the strategy.
+
 ### Generating Die Rolls
 
 Players generate die rolls every second based on the amount of tokens they have deposited into the game's pool. The more tokens they have deposited, the faster they will generate die rolls. This means that players who deposit more tokens will have more opportunities to earn points.
@@ -31,6 +35,10 @@ Players generate die rolls every second based on the amount of tokens they have 
 ### Withdrawals
 
 Players can withdraw their tokens from the game's pool at any time. However, if they withdraw before the game ends, they forfeit all of the yield their tokens have accumulated during the game and will also forfeit their score. At the end of the game, players can withdraw their tokens and their share of the yield accumulated during the game proportional to their final score. This is what makes Fortune's Roll a zero-loss game.
+
+### Dynamic and Asynchronous Gameplay
+
+Players have the freedom to play at their own pace, making decisions based on the changing game environment.
 
 ## Going Further
 
