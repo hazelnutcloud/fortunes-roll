@@ -132,7 +132,7 @@ export const app = new Elysia({ prefix: "/v1" })
       ws.publish("chat", { msg, id: ws.data.query.id! });
     },
     open(ws) {
-      const msg = `${ws.data.query.id} joined the chat}`;
+      const msg = `${ws.data.query.id} joined the chat`;
 
       ws.subscribe("chat");
       ws.publish("chat", { msg, id: "admin" });

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/queries/api';
 	import { account, accountEnsName } from '$lib/stores/account';
+	import { findAndTruncateAddress } from '$lib/utils/address';
 	import { signMessage } from '@wagmi/core';
 	import { MessagesSquare, Megaphone, SendHorizonal } from 'lucide-svelte';
 	import { onMount } from 'svelte';
@@ -13,8 +14,8 @@
 	let ws: ReturnType<(typeof api)['v1']['chat']['subscribe']>;
 	let messages: { id: string; msg: string }[] = [
 		{
-			id: 'test',
-			msg: 'test'
+			id: '🔮 Fortune Master',
+			msg: "Welcome to Fortune's Roll! Feelin' lucky?"
 		}
 	];
 
@@ -39,6 +40,9 @@
 
 		ws.subscribe((msg) => {
 			if (msg.data.id === id) return;
+			if (msg.data.id === 'admin') {
+				msg.data.msg = `📢 ${findAndTruncateAddress((msg.data.msg as string).replace('}', ''))}`;
+			}
 			messages = [...messages, msg.data];
 		});
 
@@ -64,7 +68,7 @@
 	});
 </script>
 
-<div class="bg-base-200 w-72 flex flex-col p-2">
+<div class="bg-base-200 w-72 max-w-72 flex flex-col p-2">
 	<div role="tablist" class="tabs tabs-bordered">
 		<button
 			role="tab"
@@ -72,22 +76,24 @@
 			class:tab-active={selectedTab === 'chat'}
 			on:click={() => (selectedTab = 'chat')}><MessagesSquare /></button
 		>
-		<button
+		<!-- <button
 			role="tab"
 			class="tab"
 			class:tab-active={selectedTab === 'announcements'}
 			on:click={() => (selectedTab = 'announcements')}><Megaphone /></button
-		>
+		> -->
 	</div>
-	<div class="flex-1 flex flex-col justify-end">
+	<div class="flex-1 flex flex-col justify-end py-2">
 		{#each messages as message}
-			<div class="chat chat-start">
+			<div
+				class="chat"
+				class:chat-start={message.id !== 'self'}
+				class:chat-end={message.id === 'self'}
+			>
 				<div class="chat-header">
-					{message.id}
-					<time class="text-xs opacity-50">2 hours ago</time>
+					{message.id === 'self' ? 'You' : findAndTruncateAddress(message.id)}
 				</div>
-				<div class="chat-bubble">{message.msg}</div>
-				<div class="chat-footer opacity-50">Seen</div>
+				<div class="chat-bubble whitespace-normal overflow-auto text-sm">{message.msg}</div>
 			</div>
 		{/each}
 	</div>
