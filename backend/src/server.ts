@@ -13,7 +13,7 @@ if (!postgresUrl) throw new Error("POSTGRES_URL not set.");
 
 export const app = new Elysia({ prefix: "/v1" })
   .use(cors())
-  .use(rateLimit())
+  .use(rateLimit({ max: 10, duration: 60 }))
   .use(
     swagger({
       documentation: {
@@ -31,15 +31,9 @@ export const app = new Elysia({ prefix: "/v1" })
       const { limit, offset, sortBy, sortDirection } = query;
 
       const orderBy = match([sortBy, sortDirection])
-        .with([P.string, "asc"], ([sortBy, sortDirection]) => [
-          asc(schema.player[sortBy]),
-        ])
-        .with([P.string, "desc"], ([sortBy, sortDirection]) => [
-          desc(schema.player[sortBy]),
-        ])
-        .with([P.string, undefined], ([sortBy, sortDirection]) => [
-          asc(schema.player[sortBy]),
-        ])
+        .with([P.string, "asc"], ([sortBy]) => [asc(schema.player[sortBy])])
+        .with([P.string, "desc"], ([sortBy]) => [desc(schema.player[sortBy])])
+        .with([P.string, undefined], ([sortBy]) => [asc(schema.player[sortBy])])
         .otherwise(() => undefined);
 
       const players = await db.query.player.findMany({
@@ -102,7 +96,9 @@ export const app = new Elysia({ prefix: "/v1" })
           const rankedUsers = db
             .select({
               address: schema.player.address,
-              rank: sql<number>`row_number() over (order by ${schema.player.score} desc)`.as('rank'),
+              rank: sql<number>`row_number() over (order by ${schema.player.score} desc)`.as(
+                "rank"
+              ),
             })
             .from(schema.player)
             .as("ranked_users");
@@ -129,7 +125,23 @@ export const app = new Elysia({ prefix: "/v1" })
         })
   )
   .ws("/chat", {
-    message(ws, message) {},
+    message(ws, msg) {
+      ws.publish("chat", { msg, id: ws.data.query.id! });
+    },
+    open(ws) {
+      const msg = `${ws.data.query.id} joined the chat}`;
+
+      ws.subscribe("chat");
+      ws.publish("chat", { msg, id: "admin" });
+    },
+    close(ws) {
+      ws.unsubscribe("chat");
+    },
+    body: t.String(),
+    response: t.Object({
+      id: t.String(),
+      msg: t.String(),
+    }),
   })
   .listen(3000);
 

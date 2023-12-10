@@ -13,7 +13,6 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@faker-js/faker": "^8.3.1",
     "@sveltejs/adapter-auto": "^2.1.1",
     "@sveltejs/adapter-vercel": "^3.1.0",
     "@sveltejs/kit": "^1.27.6",
@@ -42,6 +41,7 @@
     "@tanstack/svelte-query": "^5.13.2",
     "@wagmi/core": "^1.4.7",
     "@web3modal/wagmi": "^3.4.0",
+    "date-fns": "^2.30.0",
     "lucide-svelte": "^0.294.0",
     "viem": "^1.19.11",
     "zdog": "^1.1.3"

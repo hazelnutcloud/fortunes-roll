@@ -16,7 +16,7 @@
 	import { CoinbaseWalletConnector } from '@wagmi/core/connectors/coinbaseWallet';
 	import { truncateAddress } from '$lib/utils/address';
 	import { getEnsName } from '$lib/queries/ens';
-	import { account as accountStore } from '$lib/stores/account';
+	import { accountEnsName, account as accountStore } from '$lib/stores/account';
 	import { createPublicClient, webSocket } from 'viem';
 	import { onMount } from 'svelte';
 
@@ -65,6 +65,11 @@
 		watchAccount((account) => {
 			if (account.address) {
 				ensName = getEnsName(account.address);
+				ensName.then((name) => {
+					if (name) {
+						accountEnsName.set(name);
+					}
+				})
 				accountAddress = truncateAddress(account.address);
 			} else {
 				ensName = undefined;

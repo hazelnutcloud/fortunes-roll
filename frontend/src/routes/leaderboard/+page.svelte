@@ -1,6 +1,13 @@
 <script lang="ts">
+	import { getPlayersByScore } from '$lib/queries/leaderboard';
 	import { truncateAddress } from '$lib/utils/address';
-	import { faker } from '@faker-js/faker';
+	import { createQuery } from '@tanstack/svelte-query';
+	import { formatDistanceToNow } from 'date-fns';
+
+	const playerLeaderboard = createQuery({
+		queryKey: ['player-leaderboard'],
+		queryFn: getPlayersByScore
+	});
 </script>
 
 <div class="overflow-x-auto max-h-[calc(100vh-72px)]">
@@ -11,26 +18,25 @@
 				<td>account</td>
 				<td>fortune</td>
 				<td>deposit</td>
-				<td>no. of rolls</td>
-				<td>rolls remaining</td>
+				<td>total rolls</td>
+				<td>last roll</td>
 				<th></th>
 			</tr>
 		</thead>
 		<tbody>
-			{#each Array(1000).fill(0) as _, i}
-				<tr>
-					<th>{i + 1}</th>
-					<td
-						>{Math.random() > 0.6
-							? truncateAddress(faker.finance.ethereumAddress())
-							: `${faker.person.firstName().toLowerCase()}.eth`}</td
-					>
-					<td>{faker.finance.amount()} FORTUNE</td>
-					<td>{faker.finance.amount()} AVAX</td>
-					<td>{faker.number.int({max: 500})}</td>
-					<td>{faker.number.int({max: 500})}</td>
-				</tr>
-			{/each}
+			{#if $playerLeaderboard.data}
+				{#each $playerLeaderboard.data as player, i}
+					<tr>
+						<th>{i + 1}</th>
+						<td>{truncateAddress(player.address)}</td>
+						<td>{player.score}</td>
+						<td>{player.deposit}</td>
+						<td>{player.rolls}</td>
+						<td>{player.lastRollTimestamp ? formatDistanceToNow(player.lastRollTimestamp) : '-'} ago</td>
+						<th></th>
+					</tr>
+				{/each}
+			{/if}
 		</tbody>
 		<tfoot>
 			<tr>
@@ -38,8 +44,8 @@
 				<td>account</td>
 				<td>fortune</td>
 				<td>deposit</td>
-				<td>no. of rolls</td>
-				<td>rolls remaining</td>
+				<td>total rolls</td>
+				<td>last roll</td>
 				<th></th>
 			</tr>
 		</tfoot>

@@ -1,7 +1,67 @@
-<script>
+<script lang="ts">
+	import { api } from '$lib/queries/api';
+	import { account, accountEnsName } from '$lib/stores/account';
+	import { signMessage } from '@wagmi/core';
 	import { MessagesSquare, Megaphone, SendHorizonal } from 'lucide-svelte';
+	import { onMount } from 'svelte';
+	import { verifyMessage } from 'viem';
 
 	let selectedTab = 'chat';
+	let signedIn = false;
+	let input: string;
+
+	let ws: ReturnType<(typeof api)['v1']['chat']['subscribe']>;
+	let messages: { id: string; msg: string }[] = [
+		{
+			id: 'test',
+			msg: 'test'
+		}
+	];
+
+	const signIn = async () => {
+		if (!$account?.address) return;
+		const nonce = Math.floor(Math.random() * 1000000000);
+		const msg = `Sign this message to chat! nonce: ${nonce.toString(16)}`;
+		const signature = await signMessage({
+			message: msg
+		});
+
+		const correct = await verifyMessage({
+			message: msg,
+			signature,
+			address: $account.address
+		});
+
+		if (!correct) return;
+		const id = $accountEnsName ?? $account.address;
+
+		ws = api.v1.chat.subscribe({ $query: { id: $accountEnsName ?? $account.address } });
+
+		ws.subscribe((msg) => {
+			if (msg.data.id === id) return;
+			messages = [...messages, msg.data];
+		});
+
+		signedIn = true;
+	};
+
+	const send = () => {
+		if (!signedIn) return;
+		if (!ws) return;
+		if (!input.trim()) return;
+
+		ws.send(input.trim());
+
+		messages = [...messages, { id: 'self', msg: input }];
+
+		input = '';
+	};
+
+	onMount(() => {
+		return () => {
+			ws?.close();
+		};
+	});
 </script>
 
 <div class="bg-base-200 w-72 flex flex-col p-2">
@@ -19,17 +79,37 @@
 			on:click={() => (selectedTab = 'announcements')}><Megaphone /></button
 		>
 	</div>
-	<div class="flex-1"></div>
+	<div class="flex-1 flex flex-col justify-end">
+		{#each messages as message}
+			<div class="chat chat-start">
+				<div class="chat-header">
+					{message.id}
+					<time class="text-xs opacity-50">2 hours ago</time>
+				</div>
+				<div class="chat-bubble">{message.msg}</div>
+				<div class="chat-footer opacity-50">Seen</div>
+			</div>
+		{/each}
+	</div>
 	{#if selectedTab === 'chat'}
 		<div class="flex gap-2">
-			<input
-				type="text"
-				name=""
-				id=""
-				class="input input-bordered w-full"
-				placeholder="say something..."
-			/>
-			<button class="btn px-2 btn-primary"><SendHorizonal class="ml-1" /></button>
+			{#if !signedIn}
+				<button class="btn px-2 btn-primary w-full" on:click={signIn}>Sign in to chat!</button>
+			{:else}
+				<input
+					type="text"
+					name=""
+					id=""
+					class="input input-bordered w-full"
+					class:disabled={!signedIn}
+					placeholder="say something..."
+					disabled={!signedIn}
+					bind:value={input}
+				/>
+				<button class="btn px-2 btn-primary" on:click={(e) => send()}
+					><SendHorizonal class="ml-1" /></button
+				>
+			{/if}
 		</div>
 	{/if}
 </div>
