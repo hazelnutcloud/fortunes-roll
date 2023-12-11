@@ -1,0 +1,2 @@
+- [x] emit FortuneLost on rollGrab
+- [x] enforce mininum bet on rollMultiply

@@ -303,6 +303,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
     function rollMultiply(uint256 stake) external returns (uint256) {
         uint256 stakeModulus = (stake % DICE_SIDES) + 1;
 
+				require(stakeModulus >= 6, "Must choose at least 6");
+
         Player storage player = players[msg.sender];
 
         uint256 requestId = rollDice(player);
@@ -362,6 +364,8 @@ contract Fortunes is VRFConsumerBaseV2, Owned, ReentrancyGuard {
             requestId,
             block.timestamp
         );
+
+				emit FortuneLost(msg.sender, fee);
 
         return requestId;
     }
