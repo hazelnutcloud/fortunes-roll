@@ -1,2 +1,4 @@
 - [x] emit FortuneLost on rollGrab
 - [x] enforce mininum bet on rollMultiply
+- [x] enforce maximum multiplier on rollAdd
+- [ ] use some kind of curve for dice generation rate or use stake mechanism

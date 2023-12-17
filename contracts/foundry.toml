@@ -4,7 +4,6 @@ out = "out"
 solc_version = "0.8.19"
 libs = ["lib"]
 via_ir = true
-optimizer_runs = 20000
 remappings = [
 	"ds-test/=lib/forge-std/lib/ds-test/src/",
 	"forge-std/=lib/forge-std/src/",

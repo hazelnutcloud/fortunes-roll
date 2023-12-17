@@ -18,15 +18,24 @@ export async function startArkiver() {
   const postgresUrl = process.env["DATABASE_URL"];
   if (!postgresUrl) throw new Error("DATABASE_URL not set.");
 
+  const isProduction = process.env.NODE_ENV === "production";
+
   const logger = pino({
     transport: { target: "pino-pretty" },
-    level: process.env.NODE_ENV === "production" ? "info" : "debug",
+    level: isProduction ? "info" : "debug",
   });
 
-	const sqliteUrl = process.env["SQLITE_URL"];
-	if (!sqliteUrl) throw new Error("SQLITE_URL not set.");
+  const sqlitePath = (() => {
+    if (isProduction) {
+      const sqliteUrl = process.env["SQLITE_URL"];
+      if (!sqliteUrl) throw new Error("SQLITE_URL not set.");
+      return new URL(sqliteUrl).pathname;
+    } else {
+      return "arkiver.sqlite";
+    }
+  })();
 
-  const sqlite = bsqlDrizzle(new Database(new URL(sqliteUrl).pathname), {
+  const sqlite = bsqlDrizzle(new Database(sqlitePath), {
     schema: { arkiveMetadata, chainMetadata, childSource },
   });
   const dbProvider = new BunSqliteProvider({ db: sqlite, logger });
