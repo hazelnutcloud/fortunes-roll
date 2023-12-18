@@ -55,3 +55,8 @@ export async function startArkiver() {
 
   await arkiver.start();
 }
+
+
+if (import.meta.main) {
+	await startArkiver();
+}
